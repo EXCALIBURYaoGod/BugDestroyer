@@ -1,0 +1,33 @@
+# Unreal Engine 5 Git Ignore
+/Binaries/
+/Build/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/Script/
+/Plugins/*/Binaries/
+/Plugins/*/Intermediate/
+/.vs/
+/.vscode/
+/.idea/
+*.suo
+*.user
+*.userprefs
+*.pdb
+*.obj
+*.ipdb
+*.iobj
+*.db
+*.opendb
+*.cache
+*.log
+*.tmp
+*.pak
+*.ucas
+*.utoc
+*.pso
+*.ushadercode
+*.ddc
+
+# User requested assets directory
+/Assets/
