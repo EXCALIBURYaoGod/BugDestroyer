@@ -3,7 +3,7 @@
 ## 项目概览
 - 引擎版本：Unreal Engine 5.7（从构建与日志推断）
 - 项目类型：C++ + UMG/CommonUI 的 UI 驱动第三人称项目
-- 插件：含 MultiplayerSessions（当前仅资源目录可见）
+- 插件：含 MultiplayerSessions（用于 Steam/在线多人会话管理）
 - 入口工程文件：[BugDestroyer.uproject](file:///e:/UE/BugDestroyer/BugDestroyer.uproject)
 
 ## 运行与构建
@@ -59,6 +59,14 @@
   - [BugEnumTypes.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/BugTypes/BugEnumTypes.h)
   - [BugStructTypes.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/BugTypes/BugStructTypes.h)
 
+## 插件系统
+### MultiplayerSessions
+- **功能**：封装了基于 Steam 和 OnlineSubsystem 的多人会话管理逻辑。
+- **核心组件**：
+  - [MultiplayerSessionsSubsystem.h](file:///e:/UE/BugDestroyer/Plugins/MultiplayerSessions/Source/MultiplayerSessions/Public/MultiplayerSessionsSubsystem.h)：处理创建、加入、查找和销毁会话的异步操作。
+  - [SessionInfo.h](file:///e:/UE/BugDestroyer/Plugins/MultiplayerSessions/Source/MultiplayerSessions/Public/Data/SessionInfo.h)：定义会话相关的数据结构。
+- **依赖项**：`OnlineSubsystem`, `OnlineSubsystemSteam`, `CommonUI`。
+
 ## 资源与关卡
 - UI：`Content/UI/Widgets` 下包含主菜单、加载、确认、多人等界面
 - 输入：`Content/UI/Input` 与 `Content/Input` 下有 IMC/IA 资产
@@ -79,7 +87,7 @@
   - `ListDataObjcet_Collection` → 建议修正为 `ListDataObject_Collection`
   - 以上为代码与文件名层面改进，涉及引用与 UCLASS/UINTERFACE 元数据，请在重命名前评估影响
 - 插件与第三方：
-  - `Plugins/MultiplayerSessions` 目前仅资源文件，建议补齐源码或移除无用目录
+  - `Plugins/MultiplayerSessions` 包含完整的会话管理逻辑源码。
 - 版本控制建议：
   - 忽略 `Binaries/Build/Intermediate/Saved/Cooked` 等构建输出与临时文件
 
