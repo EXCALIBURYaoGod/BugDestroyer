@@ -1,0 +1,43 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "NativeGameplayTags.h"
+
+namespace BugGameplayTags
+{
+	// WidgetStacks Tags
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_WidgetStack_Modal);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_WidgetStack_GameMenu);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_WidgetStack_GameHud);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_WidgetStack_Frontend);
+	
+	// Widgets Tags
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_PressAnyKeyScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_MainMenuScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_ConfirmScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_StoryScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_OptionsScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_KeyRemapScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_CreditScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_MultiplayerScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_LobbyScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_LobbyGame);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_CharacterScreen);
+	
+	// Soft Options image Tags
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Image_TestImage);
+	
+	// GameplayTags
+	
+		// DamageTags
+		BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_Damage_Bullet);
+		// DamageTags
+	
+		// ImpactTags
+		BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_Impact_Character);
+		// ImpactTags
+	
+	// GameplayTags
+	
+}
