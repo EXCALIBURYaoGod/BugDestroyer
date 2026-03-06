@@ -62,16 +62,6 @@ void ABugCharacter::BeginPlay()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 	
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-		{
-			if (DefaultMappingContext)
-			{
-				Subsystem->AddMappingContext(DefaultMappingContext, 0);
-			}
-		}
-	}
 	CreateMIDs();
 }
 
@@ -466,6 +456,16 @@ AWeapon* ABugCharacter::GetEquippedWeapon() const
 
 void ABugCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
+	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext)
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
+		}
+	}
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		if (JumpAction)
@@ -527,6 +527,7 @@ void ABugCharacter::PostInitializeComponents()
 		CombatComponent->BugCharacter = this;
 	}
 }
+
 
 void ABugCharacter::EliminateCharacter()
 {

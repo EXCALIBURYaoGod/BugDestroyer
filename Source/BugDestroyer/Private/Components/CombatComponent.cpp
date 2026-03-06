@@ -146,7 +146,6 @@ void UCombatComponent::Fire()
 
 void UCombatComponent::StartFireTimer()
 {
-	bCanFire = true;
 	if (!EquippedWeapon) return;
 	bFiring = true;
 	BugCharacter->GetWorldTimerManager().SetTimer(
@@ -161,6 +160,7 @@ void UCombatComponent::StartFireTimer()
 void UCombatComponent::FireTimerFinished()
 {
 	bFiring = false;
+	bCanFire = true;
 	if (EquippedWeapon && EquippedWeapon->IsAutomatic() && CanFire())
 	{
 		Fire();

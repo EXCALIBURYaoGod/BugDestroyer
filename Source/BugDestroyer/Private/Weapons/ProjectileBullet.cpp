@@ -4,6 +4,8 @@
 #include "Weapons/ProjectileBullet.h"
 
 #include "DebugHelper.h"
+#include "GameplayTagAssetInterface.h"
+#include "Character/BugCharacter.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -22,20 +24,30 @@ void AProjectileBullet::BeginPlay()
 void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
 {
-	/*if (HasAuthority())
+	const FImpactEffectData* SelectedData = &DefaultImpactData;
+	FGameplayTagContainer TargetTags;
+	if (IGameplayTagAssetInterface* TagInterface = Cast<IGameplayTagAssetInterface>(OtherActor))
 	{
-		ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-        if (OwnerCharacter)
-        {
-        	AController* Controller = OwnerCharacter->GetController();
-        	if (Controller)
-        	{
-        		FGameplayTag BulletDamageTag = FGameplayTag::RequestGameplayTag(FName("Gameplay.Damage.Bullet"));
-        		UGameplayStatics::ApplyDamage(OtherActor, GetImpactDamageFromTag(BulletDamageTag), Controller, this, UDamageType::StaticClass());
-        	}
-        }
-	}*/
-	
+		TagInterface->GetOwnedGameplayTags(TargetTags);
+		
+		for (const auto& Pair : TaggedImpactEffects)
+		{
+			if (TargetTags.HasTag(Pair.Key))
+			{
+				SelectedData = &Pair.Value;
+				break;
+			}
+		}
+	}
+	if (HasAuthority())
+	{
+		ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
+		if (BugCharacter)
+		{
+			BugCharacter->GetHit(Hit.ImpactPoint);
+			UGameplayStatics::ApplyDamage(OtherActor, SelectedData->ImpactDamage, GetInstigatorController(), this, nullptr);
+		}
+	}
 	Super::OnHit(HitComponent, OtherActor, OtherComponent, NormalImpulse, Hit);
 }
 

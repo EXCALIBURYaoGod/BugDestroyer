@@ -43,6 +43,10 @@ protected:
 	UFUNCTION()
 	virtual void OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
 	
+	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
+	FImpactEffectData DefaultImpactData;
+	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
+	TMap<FGameplayTag, FImpactEffectData> TaggedImpactEffects;
 	
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -55,10 +59,8 @@ private:
 	UParticleSystem* Tracer;
 	UPROPERTY(VisibleAnywhere)
 	UParticleSystemComponent* TracerComponent;
-	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
-	TMap<FGameplayTag, FImpactEffectData> TaggedImpactEffects;
-	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
-	FImpactEffectData DefaultImpactData;
+
+
 	
 public:
 	FORCEINLINE float GetImpactDamageFromTag(FGameplayTag Tag) const { return TaggedImpactEffects.Contains(Tag) ? TaggedImpactEffects[Tag].ImpactDamage : 0.f; }

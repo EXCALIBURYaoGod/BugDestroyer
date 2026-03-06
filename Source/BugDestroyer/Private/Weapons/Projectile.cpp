@@ -61,8 +61,7 @@ void AProjectile::BeginPlay()
 void AProjectile::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent,
 	FVector NormalImpulse, const FHitResult& Hit)
 {
-
-	if (!OtherActor) return;
+	
 	
 	const FImpactEffectData* SelectedData = &DefaultImpactData;
 	FGameplayTagContainer TargetTags;
@@ -93,12 +92,6 @@ void AProjectile::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, U
 	
 	if (HasAuthority())
 	{
-		ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
-		if (BugCharacter)
-		{
-			BugCharacter->GetHit(Hit.ImpactPoint);
-			UGameplayStatics::ApplyDamage(OtherActor, SelectedData->ImpactDamage, GetInstigatorController(), this, nullptr);
-		}
 		//Destroy();
 		SetLifeSpan(0.1f);
 	}

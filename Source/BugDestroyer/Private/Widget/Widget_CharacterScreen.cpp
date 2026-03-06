@@ -27,7 +27,9 @@ void UWidget_CharacterScreen::SetupGameStateBindings(ACommonGameState* GS)
 {
 	GS->OnMatchTimeUpdated.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnMatchTimeChangedCallback);
 	int32 M, S;
-	GS->GetFormattedTime(M, S);
+	int32 MatchTime = GS->GetMatchTime();
+	M = MatchTime / 60;
+	S = MatchTime % 60;
 	OnMatchTimeChangedCallback(M, S);
 }
 

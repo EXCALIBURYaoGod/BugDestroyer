@@ -21,9 +21,8 @@ public:
 protected:
 	// begin UCommonActivatableWidget Interface
 	virtual void NativeOnActivated() override;
-	void SetupGameStateBindings(ACommonGameState* GS);
 	// end UCommonActivatableWidget Interface
-	
+
 	// begin UUserWidget Interface
 	virtual void NativeConstruct() override;
 	// end UUserWidget Interface
@@ -59,6 +58,7 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnMatchTimeUpdated(int32 InNewMinutes, int32 InNewSeconds);
 	void OnGameStateSet(AGameStateBase* GameStateBase);
+	void SetupGameStateBindings(ACommonGameState* GS);
 	
 	UFUNCTION(BlueprintPure)
 	ABugCharacter* GetOwningCharacter();

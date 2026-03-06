@@ -74,6 +74,7 @@ void UBugUISubsystem::UnRegisterCreatedPrimaryLayoutWidget(UWidget_PrimaryLayout
 {
 	if (CreatedPrimaryLayout == InCreatedPrimaryLayout)
 	{
+		
 		CreatedPrimaryLayout = nullptr;
 	}
 }

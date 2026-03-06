@@ -15,6 +15,9 @@ void ACommonGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	
 	DOREPLIFETIME(ACommonGameState, MatchTime);
+	DOREPLIFETIME(ACommonGameState, WarmupTime);
+	DOREPLIFETIME(ACommonGameState, CooldownTime);
+	
 }
 
 void ACommonGameState::BeginPlay()
@@ -25,23 +28,26 @@ void ACommonGameState::BeginPlay()
 void ACommonGameState::OnRep_MatchTime()
 {
 	int32 M, S;
-	GetFormattedTime(M, S); 
+	M = MatchTime / 60;
+	S = MatchTime % 60;
 	OnMatchTimeUpdated.Broadcast(M, S);
 }
 
-
-void ACommonGameState::GetFormattedTime(int32& Minutes, int32& Seconds) const
+void ACommonGameState::OnRep_WarmupTime()
 {
-	if (MatchTime > 0)
-	{
-		Minutes = MatchTime / 60;   // 整除得到分钟，例如 300 / 60 = 5
-		Seconds = MatchTime % 60;   // 取余得到秒数，例如 305 % 60 = 5
-	}
-	else
-	{
-		Minutes = 0;
-		Seconds = 0;
-	}
+	int32 M = WarmupTime / 60;
+	int32 S = WarmupTime % 60;
+	OnWarmupTimeUpdated.Broadcast(M, S);
 }
+
+void ACommonGameState::OnRep_CooldownTime()
+{
+	int32 M = CooldownTime / 60;
+	int32 S = CooldownTime % 60;
+	OnCooldownTimeUpdated.Broadcast(M, S);
+}
+
+
+
 
 

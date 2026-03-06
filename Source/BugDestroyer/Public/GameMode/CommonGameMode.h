@@ -6,6 +6,11 @@
 #include "GameFramework/GameMode.h"
 #include "CommonGameMode.generated.h"
 
+namespace MatchState
+{
+	extern BUGDESTROYER_API const FName Cooldown;
+}
+
 UCLASS()
 class BUGDESTROYER_API ACommonGameMode : public AGameMode
 {
@@ -25,12 +30,25 @@ public:
 	
 	
 protected:
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void OnMatchStateSet() override;
+	
 	FTimerHandle MatchTimerHandle;
 	void UpdateMatchTime();
+	FTimerHandle WarmupTimerHandle;
+	void UpdateWarmupTime();
+	void HandleCooldownMatchState();
+	FTimerHandle CooldownTimerHandle;
+	void UpdateCooldownTime();
+	void HandleMatchEnd();
 	
 private:
 	UPROPERTY(EditDefaultsOnly, Category = "Match")
-	float WarmupTime = 10.f;
-	float CountdownTime = 0.f;
+	float WarmupTime = 5.f;
+	UPROPERTY(EditDefaultsOnly, Category = "Match")
+	int32 MatchTime = 300;
+	UPROPERTY(EditDefaultsOnly, Category = "Match")
+	int32 CooldownTime = 10;
+	
 	
 };

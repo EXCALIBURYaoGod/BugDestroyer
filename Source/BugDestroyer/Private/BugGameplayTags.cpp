@@ -9,7 +9,7 @@ namespace BugGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Bug_WidgetStack_Modal, "Bug.WidgetStack.Modal")
 	UE_DEFINE_GAMEPLAY_TAG(Bug_WidgetStack_GameMenu, "Bug.WidgetStack.GameMenu")
 	UE_DEFINE_GAMEPLAY_TAG(Bug_WidgetStack_GameHud, "Bug.WidgetStack.GameHud")
-	UE_DEFINE_GAMEPLAY_TAG(Bug_WidgetStack_FrontEnd, "Bug.WidgetStack.FrontEnd")
+	UE_DEFINE_GAMEPLAY_TAG(Bug_WidgetStack_Frontend, "Bug.WidgetStack.FrontEnd")
 	// WidgetStacks Tags
 	
 	// Widgets Tags
@@ -24,6 +24,8 @@ namespace BugGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_LobbyScreen, "Bug.Widget.LobbyScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_LobbyGame, "Bug.Widget.LobbyGame");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_CharacterScreen, "Bug.Widget.CharacterScreen");
+	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_MatchBeforeStartScreen, "Bug.Widget.MatchBeforeStartScreen");
+	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_MatchCooldownScreen, "Bug.Widget.MatchCooldownScreen");
 	// Widgets Tags
 	
 	// Soft Options image Tags
