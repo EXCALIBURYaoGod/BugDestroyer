@@ -84,3 +84,25 @@ struct FCrosshairSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UTexture2D* CrosshairTexture = nullptr;
 };
+
+USTRUCT(BlueprintType)
+struct FImpactEffectData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	UParticleSystem* Particles;
+
+	UPROPERTY(EditAnywhere)
+	USoundBase* Sound;
+	
+	UPROPERTY(EditAnywhere)
+	float ImpactDamage;
+	
+	FImpactEffectData()
+		: Particles(nullptr)
+		, Sound(nullptr)
+		, ImpactDamage(0.0f)
+	{
+	}
+};

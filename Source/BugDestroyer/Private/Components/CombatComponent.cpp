@@ -7,7 +7,6 @@
 #include "Camera/CameraComponent.h"
 #include "Character/BugCharacter.h"
 #include "Controllers/GameCommonPlayerController.h"
-#include "Engine/SkeletalMeshSocket.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HUD/BugHud.h"
 #include "Kismet/GameplayStatics.h"
@@ -27,7 +26,7 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
-	DOREPLIFETIME(UCombatComponent, bAiming);
+	DOREPLIFETIME_CONDITION(UCombatComponent, bAiming, COND_SkipOwner);
 	DOREPLIFETIME(UCombatComponent, HitTarget);
 	DOREPLIFETIME(UCombatComponent, AmmoLeft);
 	DOREPLIFETIME(UCombatComponent, CombatState);
@@ -45,7 +44,6 @@ void UCombatComponent::BeginPlay()
 			DefaultFOV = CameraComponent->FieldOfView;
 			CurrentFOV = DefaultFOV;
 		}
-		BugCharacter->OnWeaponChanged.AddUniqueDynamic(this, &ThisClass::OnWeaponChangedCallBack);
 	}
 	InitializeCarriedAmmoMap();
 }
@@ -75,10 +73,14 @@ void UCombatComponent::PushCrosshair(float DeltaTime)
 				FVector2D(0.f, 20.f), 
 				VelocityRange
 			);
-			float TargetSpread = (bFiring ? EquippedWeapon->GetFireCrosshairSpread() : 0.0f) 
-				+ (bAiming ? EquippedWeapon->GetAimCrosshairSpread() : 0.0f) + VelocitySpread;
-			BugHud->SetCrosshairCurrentSpread(FMath::FInterpTo(BugHud->GetCrosshairCurrentSpread(), TargetSpread, DeltaTime, 10.f));
-			BugHud->SetbDrawCrosshair(EquippedWeapon != nullptr);
+			if (PlayerController->IsLocalPlayerController())
+			{
+                float TargetSpread = (bFiring ? EquippedWeapon->GetFireCrosshairSpread() : 0.0f) 
+                	+ (bAiming ? EquippedWeapon->GetAimCrosshairSpread() : 0.0f) + VelocitySpread;
+                BugHud->SetCrosshairCurrentSpread(FMath::FInterpTo(BugHud->GetCrosshairCurrentSpread(), TargetSpread, DeltaTime, 10.f));
+                BugHud->SetbDrawCrosshair(EquippedWeapon != nullptr);
+			}
+
 		}
 	}
 	
@@ -269,11 +271,6 @@ void UCombatComponent::InitializeHUD()
 	}
 }
 
-void UCombatComponent::OnWeaponChangedCallBack(class AWeapon* NewWeapon)
-{
-	EquippedWeapon = NewWeapon;
-}
-
 void UCombatComponent::OnRep_AmmoLeft()
 {
 	BugCharacter->OnAmmoLeftChanged.Broadcast(EquippedWeapon->GetCurrentAmmo(), EquippedWeapon->GetMagCapacity(), AmmoLeft);
@@ -281,7 +278,15 @@ void UCombatComponent::OnRep_AmmoLeft()
 
 void UCombatComponent::InitializeCarriedAmmoMap()
 {
-	CarriedAmmoMap.Emplace(EWeaponType::EWT_AssaultRifle, 60);
+	if (CarriedAmmoMap.IsEmpty())
+	{
+		CarriedAmmoMap.Emplace(EWeaponType::EWT_AssaultRifle, 60);
+		CarriedAmmoMap.Emplace(EWeaponType::EWT_PlasmaPistol, 30);
+		CarriedAmmoMap.Emplace(EWeaponType::EWT_RocketLauncher, 4);
+		CarriedAmmoMap.Emplace(EWeaponType::EWT_SubmachineGun, 80);
+		CarriedAmmoMap.Emplace(EWeaponType::EWT_Shotgun, 24);
+	}
+
 }
 
 bool UCombatComponent::CanFire()
@@ -362,7 +367,21 @@ void UCombatComponent::OnCombatStateChanged()
 	switch (CombatState)
 	{
 	case ECombatState::ECS_Reloading:
-		HandleReload();
+		
+		if (BugCharacter)
+		{
+			BugCharacter->PlayReloadMontage();
+			if (EquippedWeapon->GetReloadSound())
+			{
+				UGameplayStatics::PlaySoundAtLocation(
+					this,
+					EquippedWeapon->GetReloadSound(),
+					BugCharacter->GetActorLocation()
+				);
+			}
+			EquippedWeapon->PlayReloadAnimation();
+		}
+	
 		break;
 	case ECombatState::ECS_Equipping:
 		if (EquippedWeapon->GetEquipSound())
@@ -398,66 +417,75 @@ void UCombatComponent::RPC_Reload_Implementation()
 	if (EquippedWeapon && EquippedWeapon->GetCurrentAmmo() != EquippedWeapon->GetMagCapacity() && AmmoLeft > 0 && CombatState == ECombatState::ECS_Unoccupied)
 	{
 		CombatState = ECombatState::ECS_Reloading;
-		MulticastRPC_ReloadStarted();
-	}
-}
-
-void UCombatComponent::MulticastRPC_ReloadStarted_Implementation()
-{
-	if (!EquippedWeapon) return;
-	if (BugCharacter)
-	{
-		BugCharacter->PlayReloadMontage();
-		CombatState = ECombatState::ECS_Reloading;
-		
-		if (EquippedWeapon->GetReloadSound())
+		if (BugCharacter)
 		{
-			UGameplayStatics::PlaySoundAtLocation(
-				this,
-				EquippedWeapon->GetReloadSound(),
-				BugCharacter->GetActorLocation()
-			);
+			BugCharacter->PlayReloadMontage();
+			if (EquippedWeapon->GetReloadSound())
+			{
+				UGameplayStatics::PlaySoundAtLocation(
+					this,
+					EquippedWeapon->GetReloadSound(),
+					BugCharacter->GetActorLocation()
+				);
+			}
+			EquippedWeapon->PlayReloadAnimation();
 		}
 	}
 }
 
-void UCombatComponent::MulticastRPC_ReloadCompleted_Implementation()
-{
-	if (BugCharacter)
-	{
-		CombatState = ECombatState::ECS_Unoccupied;
-	}
-}
+
 
 void UCombatComponent::OnReloadAnimationFinished()
 {
 	if (BugCharacter)
 	{
-		if (BugCharacter->HasAuthority() && EquippedWeapon)
+		if (BugCharacter->HasAuthority())
 		{
-			// 服务器端直接处理Reload逻辑
-			HandleReload();
-			MulticastRPC_ReloadCompleted();
+			if (EquippedWeapon)
+			{
+				CombatState = ECombatState::ECS_Unoccupied;
+				OnCombatStateChanged();
+				HandleReloadAmmo();
+			}
 		}
-		else if (!BugCharacter->HasAuthority())
+		else
 		{
-			// 客户端将动画结束通知发送到服务器
 			RPC_ReloadAnimationFinished();
 		}
 	}
 }
 
-void UCombatComponent::RPC_ReloadAnimationFinished_Implementation()
+void UCombatComponent::OnEquipAnimationFinished()
 {
-	// 服务器端处理客户端发送的动画结束通知
-	if (EquippedWeapon)
+	if (BugCharacter)
 	{
-		HandleReload();
-		MulticastRPC_ReloadCompleted();
+		if (BugCharacter->HasAuthority())
+		{
+			CombatState = ECombatState::ECS_Unoccupied;
+			OnCombatStateChanged();
+		}
+		else
+		{
+			RPC_EquipCompleted();
+		}
 	}
 }
 
-void UCombatComponent::HandleReload()
+void UCombatComponent::RPC_EquipCompleted_Implementation()
+{
+	CombatState = ECombatState::ECS_Unoccupied;
+}
+
+void UCombatComponent::RPC_ReloadAnimationFinished_Implementation()
+{
+	if (EquippedWeapon)
+	{
+		CombatState = ECombatState::ECS_Unoccupied;
+		HandleReloadAmmo();
+	}
+}
+
+void UCombatComponent::HandleReloadAmmo()
 {
 	if (BugCharacter)
 	{
@@ -477,6 +505,7 @@ void UCombatComponent::HandleReload()
 				EquippedWeapon->SetCurrentAmmo(CurrentAmmo + AmmoLeft);
 				AmmoLeft = 0;
 			}
+			CarriedAmmoMap.Add(EquippedWeapon->GetWeaponType(), AmmoLeft);
 			EquippedWeapon->OnAmmoChanged.Broadcast(EquippedWeapon->GetCurrentAmmo(), EquippedWeapon->GetMagCapacity(), AmmoLeft);
 			BugCharacter->OnAmmoLeftChanged.Broadcast(EquippedWeapon->GetCurrentAmmo(), EquippedWeapon->GetMagCapacity(), AmmoLeft);
 		}

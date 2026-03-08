@@ -19,7 +19,7 @@ void ABugHud::DrawCrosshair()
 	if (bDrawCrosshair)
 	{
 		const FVector2D Center(Canvas->SizeX * 0.5f, Canvas->SizeY * 0.5f);
-		const float ActiveGap = Config.Gap + CurrentSpread;
+		const float ActiveGap = FMath::Max(0.f, Config.Gap + CurrentSpread);
 		if (Config.bIsTextureMode && Config.CrosshairTexture)
 		{
 			float TextureWidth = Config.CrosshairTexture->GetSizeX();
@@ -43,8 +43,7 @@ void ABugHud::DrawCrosshair()
 			DrawRect(Config.Color, Center.X - ActiveGap - Config.Size, Center.Y - HalfThickness, Config.Size, Config.Thickness);
 			DrawRect(Config.Color, Center.X + ActiveGap, Center.Y - HalfThickness, Config.Size, Config.Thickness);
 		}
-	
-		CurrentSpread = FMath::FInterpTo(CurrentSpread, 0.0f, GetWorld()->GetDeltaSeconds(), 10.0f);
+		
 	}
 
 }

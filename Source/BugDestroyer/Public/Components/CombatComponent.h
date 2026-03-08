@@ -40,7 +40,7 @@ public:
 	// only server calls
 	void EquipWeapon(AWeapon* WeaponToEquip);
 	void Reload();
-	void HandleReload();
+	void HandleReloadAmmo();
 	// only server calls
 
 	
@@ -63,15 +63,14 @@ protected:
 	
 	UFUNCTION(Server, Reliable)
 	void RPC_Reload();
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPC_ReloadStarted();
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPC_ReloadCompleted();
+	UFUNCTION(Server, Reliable)
+	void RPC_ReloadAnimationFinished();
 	
 	// Called when reload animation finishes
 	void OnReloadAnimationFinished();
+	void OnEquipAnimationFinished();
 	UFUNCTION(Server, Reliable)
-	void RPC_ReloadAnimationFinished();
+	void RPC_EquipCompleted();
 	
 private:
 	UPROPERTY()
@@ -105,19 +104,11 @@ private:
 	void TraceUnderCrosshairs(FHitResult& HitResult);
 	void InitializePlayerController();
 	void InitializeHUD();
-	UFUNCTION()
-	void OnWeaponChangedCallBack(class AWeapon* NewWeapon);
-	
-	// Reload
-	FTimerHandle ReloadTimerHandle;
-	void StartReloadTimer();
-	void ReloadTimerFinished();
-	float GetReloadDuration() const;
-	// Reload
 	
 	// Ammo
 	UPROPERTY(ReplicatedUsing = OnRep_AmmoLeft, VisibleAnywhere, Category= "Combat")
 	int32 AmmoLeft = 90;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat | Ammo", meta = (AllowPrivateAccess = "true"))
 	TMap<EWeaponType, int32> CarriedAmmoMap;
 	UFUNCTION()
 	void OnRep_AmmoLeft();

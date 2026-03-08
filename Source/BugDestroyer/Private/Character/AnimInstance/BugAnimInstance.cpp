@@ -156,7 +156,7 @@ void UBugAnimInstance::AnimNotify_EquipAnimFinished()
 {
 	if (Character)
 	{
-		Character->SetUnoccupied();
+		Character->OnEquipAnimationFinished();
 	}
 }
 
@@ -165,7 +165,6 @@ void UBugAnimInstance::AnimNotify_ReloadFinished()
 	if (Character)
 	{
 		Character->OnReloadAnimationFinished();
-		Character->SetUnoccupied();
 	}
 }
 

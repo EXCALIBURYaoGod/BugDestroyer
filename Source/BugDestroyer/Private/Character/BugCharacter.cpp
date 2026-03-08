@@ -10,6 +10,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/CombatComponent.h"
+#include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameMode/CommonGameMode.h"
@@ -241,9 +242,14 @@ void ABugCharacter::Jump()
 float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
 	class AController* EventInstigator, AActor* DamageCauser)
 {
-	
+	if (bElimmed) return 0.0f;
 	if (HasAuthority())
 	{	// ListenServer本地需手动调用伤害处理
+		if (DamageEvent.IsOfType(FRadialDamageEvent::ClassID))
+		{
+			const FRadialDamageEvent* RadialEvent = (const FRadialDamageEvent*)&DamageEvent;
+			GetHit(RadialEvent->Origin);
+		}
 		CurrentHealth = FMath::Clamp(CurrentHealth - DamageAmount, 0.f, MaxHealth);
 		OnHealthChanged.Broadcast(CurrentHealth, MaxHealth); 
 		if (CurrentHealth == 0.f)
@@ -319,11 +325,11 @@ void ABugCharacter::UpdateDissolveMaterial(float DissolveValue)
 void ABugCharacter::StartDissolve()
 {
 	DissolveTrack.BindDynamic(this, &ABugCharacter::UpdateDissolveMaterial);
+    
 	if (DissolveCurve && DissolveTimeline)
 	{
-		if (DeathMontage && DissolveTimeline)
+		if (DeathMontage)
 		{
-			// FromFront3指定的动画时长最短，为了同步消失选取最短
 			int32 SectionIndex = DeathMontage->GetSectionIndex(FName(TEXT("FromFront3")));
 			if (SectionIndex != INDEX_NONE)
 			{
@@ -334,12 +340,28 @@ void ABugCharacter::StartDissolve()
 
 				float NewPlayRate = CurveDuration / SectionLength;
 				DissolveTimeline->SetPlayRate(NewPlayRate);
-
 			}
 		}
+        
 		DissolveTimeline->AddInterpFloat(DissolveCurve, DissolveTrack);
+
+		FOnTimelineEvent TimelineFinishedEvent;
+		TimelineFinishedEvent.BindDynamic(this, &ABugCharacter::OnDissolveTimelineFinished);
+		DissolveTimeline->SetTimelineFinishedFunc(TimelineFinishedEvent);
+
 		DissolveTimeline->Play();
-		
+	}
+}
+
+void ABugCharacter::OnDissolveTimelineFinished()
+{
+	if (GetCapsuleComponent())
+	{
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (GetMesh())
+	{
+		GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 }
 
@@ -396,14 +418,11 @@ void ABugCharacter::HideIfCameraClose(float DeltaTime)
 void ABugCharacter::GetHit(const FVector& HitPoint)
 {
 	ProjectileImpactPoint = HitPoint;
-	if (HasAuthority())
-	{
-		PlayHitReactMontage(ProjectileImpactPoint); // 服务端本地调用
-	}
+	PlayHitReactMontage(ProjectileImpactPoint);
 	
 }
 
-// only Server calls
+
 void ABugCharacter::SetOverlappingWeapon(AWeapon* Weapon)
 {
 	if (IsLocallyControlled())
@@ -549,6 +568,7 @@ void ABugCharacter::EliminateCharacter()
 			UISubsystem->UnRegisterCreatedPrimaryLayoutWidget(Layout);
 		}
 	}*/
+	
 	MulticastRPC_EliminateCharacter();
 	GetWorldTimerManager().SetTimer(
 		ElimTimerHandle,
@@ -566,12 +586,17 @@ void ABugCharacter::MulticastRPC_EliminateCharacter_Implementation()
 	{
 		DisableInput(PC);
 	}
-	GetCharacterMovement()->StopMovementImmediately();
+	if (GetMesh())
+	{
+		GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	}
 	
-	// Disable Collision
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->StopMovementImmediately();
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None); 
+		GetCharacterMovement()->DisableMovement();
+	}
 	PlayDeathMontage(ProjectileImpactPoint);
 
 	int32 NumMaterials = GetMesh()->GetNumMaterials();
@@ -614,9 +639,28 @@ void ABugCharacter::PlayFireMontage()
 {
 	if (!CombatComponent || CombatComponent->EquippedWeapon == nullptr) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && RifleFireMontage)
+	if (AnimInstance && FireMontage)
 	{
-		AnimInstance->Montage_Play(RifleFireMontage);
+		FName SectionName;
+		switch (CombatComponent->EquippedWeapon->GetWeaponType())
+		{
+		case EWeaponType::EWT_AssaultRifle:
+			SectionName = FName("Rifle");
+			break;
+		case EWeaponType::EWT_PlasmaPistol:
+			SectionName = FName("Pistol");
+			break;
+		case EWeaponType::EWT_SubmachineGun:
+			SectionName = FName("SMG");
+			break;
+		case EWeaponType::EWT_Shotgun:
+			SectionName = FName("Shotgun");
+			break;
+		case EWeaponType::EWT_Max:
+			break;
+		}
+		AnimInstance->Montage_Play(FireMontage);
+		AnimInstance->Montage_JumpToSection(SectionName, FireMontage);
 	}
 	
 }
@@ -624,7 +668,7 @@ void ABugCharacter::PlayFireMontage()
 void ABugCharacter::PlayHitReactMontage(const FVector& HitPoint)
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && HitReactMontage)
+	if (AnimInstance && HitReactMontage && !bElimmed)
 	{
 		FVector ToHit = HitPoint - GetActorLocation();
 		ToHit.Z = 0.f;
@@ -689,6 +733,7 @@ void ABugCharacter::PlayDeathMontage(const FVector& HitPoint)
 		{
 			SectionName = FName("FromLeft");
 		}
+		Debug::Print(FString::Printf(TEXT("SectionName: %s"), *SectionName.ToString()));
 		AnimInstance->Montage_Play(DeathMontage);
 		AnimInstance->Montage_JumpToSection(SectionName, DeathMontage);
 		
@@ -699,7 +744,7 @@ void ABugCharacter::PlayEquipMontage()
 {
 	if (!CombatComponent || CombatComponent->EquippedWeapon == nullptr) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && RifleEquipMontage)
+	if (AnimInstance && EquipMontage)
 	{
 		FName SectionName;
 		switch (CombatComponent->EquippedWeapon->GetWeaponType())
@@ -707,11 +752,21 @@ void ABugCharacter::PlayEquipMontage()
 		case EWeaponType::EWT_AssaultRifle:
 			SectionName = FName("Rifle");
 			break;
+		case EWeaponType::EWT_PlasmaPistol:
+			SectionName = FName("Pistol");
+			break;
+		case EWeaponType::EWT_SubmachineGun:
+			SectionName = FName("Pistol");// 暂时用Pistol替代
+			break;
+		case EWeaponType::EWT_Shotgun:
+			SectionName = FName("Rifle"); // 暂时用rifle替代
+			break;
 		case EWeaponType::EWT_Max:
 			break;
 		}
-		AnimInstance->Montage_Play(RifleEquipMontage);
-		AnimInstance->Montage_JumpToSection(SectionName, RifleEquipMontage);
+		
+		AnimInstance->Montage_Play(EquipMontage);
+		AnimInstance->Montage_JumpToSection(SectionName, EquipMontage);
 	}
 }
 
@@ -719,7 +774,7 @@ void ABugCharacter::PlayReloadMontage()
 {
 	if (!CombatComponent || CombatComponent->EquippedWeapon == nullptr) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && RifleReloadMontage)
+	if (AnimInstance && ReloadMontage)
 	{
 		FName SectionName;
 		switch (CombatComponent->EquippedWeapon->GetWeaponType())
@@ -727,11 +782,20 @@ void ABugCharacter::PlayReloadMontage()
 		case EWeaponType::EWT_AssaultRifle:
 			SectionName = FName("Rifle");
 			break;
+		case EWeaponType::EWT_PlasmaPistol:
+			SectionName = FName("Pistol");
+			break;
+		case EWeaponType::EWT_SubmachineGun:
+			SectionName = FName("SMG");
+			break;
+		case EWeaponType::EWT_Shotgun:
+			SectionName = FName("Rifle"); // 暂时用rifle替代
+			break;
 		case EWeaponType::EWT_Max:
 			break;
 		}
-		AnimInstance->Montage_Play(RifleReloadMontage);
-		AnimInstance->Montage_JumpToSection(SectionName, RifleReloadMontage);
+		AnimInstance->Montage_Play(ReloadMontage);
+		AnimInstance->Montage_JumpToSection(SectionName, ReloadMontage);
 	}
 }
 
@@ -740,6 +804,14 @@ void ABugCharacter::OnReloadAnimationFinished()
 	if (CombatComponent)
 	{
 		CombatComponent->OnReloadAnimationFinished();
+	}
+}
+
+void ABugCharacter::OnEquipAnimationFinished()
+{
+	if (CombatComponent)
+	{
+		CombatComponent->OnEquipAnimationFinished();
 	}
 }
 

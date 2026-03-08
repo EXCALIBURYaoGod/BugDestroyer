@@ -3,6 +3,7 @@
 
 #include "Weapons/Casing.h"
 
+#include "BugDestroyer/BugDestroyer.h"
 #include "Kismet/GameplayStatics.h"
 
 
@@ -18,11 +19,12 @@ ACasing::ACasing()
 	StaticMesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
 	StaticMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	StaticMesh->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+	StaticMesh->SetCollisionResponseToChannel(ECC_SKM, ECR_Ignore);
 	StaticMesh->SetSimulatePhysics(true);
 	StaticMesh->SetEnableGravity(true);
 	StaticMesh->SetNotifyRigidBodyCollision(true);
+	StaticMesh->BodyInstance.bUseCCD = true;
 	ShellEjectionImpulse = 10.f;
-	InitialLifeSpan = 3.f;
 	
 }
 
@@ -31,6 +33,7 @@ void ACasing::BeginPlay()
 	Super::BeginPlay();
 	StaticMesh->OnComponentHit.AddDynamic(this, &ThisClass::OnHit);
 	StaticMesh->AddImpulse(GetActorForwardVector() * ShellEjectionImpulse);
+	InitialLifeSpan = 3.f;
 	
 }
 

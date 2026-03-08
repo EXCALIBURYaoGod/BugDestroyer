@@ -3,7 +3,7 @@
 
 #include "Weapons/ProjectileWeapon.h"
 #include "Engine/SkeletalMeshSocket.h"
-#include "Weapons/Projectile.h"
+#include "Weapons/Projectiles/Projectile.h"
 
 
 

@@ -138,6 +138,13 @@ void AWeapon::OnWeaponStateSet()
 		
 			CachedOwningBugCharacterForEquip->OnWeaponChanged.Broadcast(this);
 		}
+		if (WeaponType == EWeaponType::EWT_SubmachineGun)
+		{
+			WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			WeaponMesh->SetEnableGravity(true);
+			WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+		}
+		
 		break;
 
 	case EWeaponState::EWS_Dropped:
@@ -190,6 +197,14 @@ void AWeapon::UpdateWeaponDither(float Alpha)
 	for (UMaterialInstanceDynamic* MID : DynamicMeshMID)
 	{
 		MID->SetScalarParameterValue(FName("GhostAlpha"), Alpha);
+	}
+}
+
+void AWeapon::PlayReloadAnimation()
+{
+	if (ReloadAnimation && WeaponMesh)
+	{
+		WeaponMesh->PlayAnimation(ReloadAnimation, false);
 	}
 }
 

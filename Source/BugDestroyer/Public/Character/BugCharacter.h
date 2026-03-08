@@ -133,15 +133,15 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_MaxWalkSpeed)
 	float ServerMaxWalkSpeed;
 	UPROPERTY(EditAnywhere, Category= "Combat")
-	UAnimMontage* RifleFireMontage;
+	UAnimMontage* FireMontage;
 	UPROPERTY(EditAnywhere, Category= "Combat")
 	UAnimMontage* HitReactMontage;
 	UPROPERTY(EditAnywhere, Category= "Combat")
 	UAnimMontage* DeathMontage;
 	UPROPERTY(EditAnywhere, Category= "Combat")
-	UAnimMontage* RifleEquipMontage;
+	UAnimMontage* EquipMontage;
 	UPROPERTY(EditAnywhere, Category= "Combat")
-	UAnimMontage* RifleReloadMontage;
+	UAnimMontage* ReloadMontage;
 	UPROPERTY(ReplicatedUsing = OnRep_ProjectileImpactPoint, VisibleAnywhere, Category= "Combat")
 	FVector_NetQuantize ProjectileImpactPoint;	
 	
@@ -158,6 +158,8 @@ private:
 	UFUNCTION()
 	void UpdateDissolveMaterial(float DissolveValue);
 	void StartDissolve();
+	UFUNCTION()
+	void OnDissolveTimelineFinished();
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	UCurveFloat* DissolveCurve;
 	UPROPERTY(EditAnywhere, Category = "Combat")
@@ -189,6 +191,9 @@ public:
 	// Animation Notify Callbacks
 	UFUNCTION()
 	void OnReloadAnimationFinished();
+	UFUNCTION()
+	void OnEquipAnimationFinished();
+	
 	// Only Server Calls
 	FORCEINLINE bool IsWeaponEquipped() const { return CombatComponent && CombatComponent->EquippedWeapon; }
 	FORCEINLINE bool IsAiming() const { return CombatComponent && CombatComponent->bAiming; }

@@ -27,6 +27,10 @@ UENUM(BlueprintType)
 enum class EWeaponType : uint8
 {
 	EWT_AssaultRifle UMETA(DisplayName = "Assault Rifle"),
+	EWT_RocketLauncher UMETA(DisplayName = "Rocket Launcher"),
+	EWT_PlasmaPistol UMETA(DisplayName = "Plasma Pistol"),
+	EWT_SubmachineGun UMETA(DisplayName = "Submachine Gun"),
+	EWT_Shotgun UMETA(DisplayName = "Shotgun"),
 	
 	EWT_Max UMETA(DisplayName = "DefaultMax")
 };
@@ -53,6 +57,7 @@ public:
 	virtual void Fire(const FVector& HitTarget);
 	void DropWeapon(const FVector& Direction = FVector::ZeroVector);
 	void UpdateWeaponDither(float Alpha);
+	void PlayReloadAnimation();
 	
 protected:
 	virtual void BeginPlay() override;
@@ -86,6 +91,8 @@ private:
 	UWidgetComponent* PickupWidget;
 	UPROPERTY(EditAnywhere, Category= "Weapon Properties")
 	UAnimationAsset* FireAnimation;
+	UPROPERTY(EditAnywhere, Category= "Weapon Properties")
+	UAnimationAsset* ReloadAnimation;
 	UPROPERTY(ReplicatedUsing= OnRep_WeaponState, VisibleAnywhere, Category= "Weapon Properties")
 	EWeaponState WeaponState;
 	UPROPERTY(EditAnywhere, Category= "Weapon Properties")
@@ -100,8 +107,6 @@ private:
 	float AimCrosshairSpread = -10.f;
 	UPROPERTY(EditAnywhere, Category = "Weapon Properties", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float FireDelay = .15f;
-	UPROPERTY(EditAnywhere, Category = "Weapon Properties", meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float ReloadTime = 2.0f;
 	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
 	bool bAutomatic = true;
 	UPROPERTY(EditAnywhere, Category = "Weapon Properties", ReplicatedUsing = OnRep_CurrentAmmo )
@@ -143,8 +148,9 @@ public:
 	FORCEINLINE bool IsAmmoEmpty() const { return CurrentAmmo == 0; }
 	FORCEINLINE EWeaponType GetWeaponType() const { return WeaponType; }
 	FORCEINLINE USoundBase* GetEquipSound() const { return EquipSound; }
-	FORCEINLINE float GetReloadTime() const { return ReloadTime; }
 	FORCEINLINE USoundBase* GetReloadSound() const { return ReloadSound; }
+	FORCEINLINE UAnimationAsset* GetFireAnimation() const { return FireAnimation; }
+	FORCEINLINE TSubclassOf<ACasing> GetCasingClass() const { return CasingClass; }
 	
 	UPROPERTY(BlueprintAssignable)
 	FOnAmmoChangedSignature OnAmmoChanged;
