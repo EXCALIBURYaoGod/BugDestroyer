@@ -8,14 +8,18 @@
 #include "EnhancedInputComponent.h"
 #include "BugDestroyer/BugDestroyer.h"
 #include "Camera/CameraComponent.h"
+#include "Components/BuffComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/CombatComponent.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerState.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameMode/CommonGameMode.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Weapons/Weapon.h"
+#include "Engine/NetConnection.h"
 
 
 ABugCharacter::ABugCharacter()
@@ -38,6 +42,9 @@ ABugCharacter::ABugCharacter()
 	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 	CombatComponent->SetIsReplicated(true);
 	
+	BuffComponent = CreateDefaultSubobject<UBuffComponent>(TEXT("BuffComponent"));
+	BuffComponent->SetIsReplicated(true);
+	
 	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 	GetMesh()->SetCollisionObjectType(ECC_SKM);
@@ -52,18 +59,38 @@ ABugCharacter::ABugCharacter()
 	
 	DissolveTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DissolveTimelineComponent"));
 	
+	AttachedGrenadeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AttachedGrenade"));
+	AttachedGrenadeMesh->SetupAttachment(GetMesh(), FName("GrenadeSocket"));
+	AttachedGrenadeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	
 }
 
 
+void ABugCharacter::PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount)
+{
+	if (CombatComponent)
+	{
+		CombatComponent->PickupAmmo(WeaponType, AmmoAmount);
+	}
+}
 
 void ABugCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 	
 	CreateMIDs();
+	if (AttachedGrenadeMesh)
+	{
+		AttachedGrenadeMesh->SetVisibility(false);
+	}
+	if (IsLocallyControlled())
+	{
+		GetWorldTimerManager().SetTimer(NetStatTimerHandle, this, &ThisClass::UpdateNetworkStats, 1.0f, true);
+	}
+	
 }
 
 
@@ -92,9 +119,8 @@ void ABugCharacter::Tick(float DeltaTime)
 void ABugCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	// 将OverlappingWeapon设置为所有客户端都能复制，而不仅仅是角色拥有者
-	DOREPLIFETIME(ABugCharacter, OverlappingWeapon);
+	
+	DOREPLIFETIME_CONDITION(ABugCharacter, OverlappingWeapon, COND_OwnerOnly);
 	DOREPLIFETIME(ABugCharacter, CurrentHealth);
 	DOREPLIFETIME(ABugCharacter, ProjectileImpactPoint);
 }
@@ -128,14 +154,22 @@ void ABugCharacter::EquipButtonPressed()
 {
 	if (CombatComponent && OverlappingWeapon)
 	{
-
 		if (HasAuthority())
 		{
 			CombatComponent->EquipWeapon(OverlappingWeapon);
+			
 		}
 		else
 		{
 			RPC_ServerEquipButtonPressed();
+			if (OverlappingWeapon->GetEquipSound())
+			{
+				UGameplayStatics::PlaySoundAtLocation(
+					this,
+					OverlappingWeapon->GetEquipSound(),
+					GetActorLocation()
+				);
+			}
 		}
 	}
 }
@@ -175,9 +209,10 @@ void ABugCharacter::StopAiming()
 
 void ABugCharacter::StartSprint()
 {
+	bSprintButtonPressed = true;
 	if (HasAuthority())
 	{
-		SetMaxWalkSpeed(600.f);
+		SetMaxWalkSpeed(SprintMaxWalkSpeed);
 	}
 	else
 	{
@@ -187,9 +222,14 @@ void ABugCharacter::StartSprint()
 
 void ABugCharacter::StopSprint()
 {
+	bSprintButtonPressed = false;
+	if (BuffComponent)
+	{
+		if (BuffComponent->bSpeedBuffing) return;
+	}
 	if (HasAuthority())
 	{
-		GetCharacterMovement()->MaxWalkSpeed = 350.f;
+		SetMaxWalkSpeed(DefaultMaxWalkSpeed);
 	}
 	else
 	{
@@ -226,6 +266,22 @@ void ABugCharacter::ReleaseMoveButton()
 	bWantsToMove = false;
 }
 
+void ABugCharacter::GrenadeButtonPressed()
+{
+	if (CombatComponent)
+	{
+		CombatComponent->TossGrenade();
+	}
+}
+
+void ABugCharacter::SwapButtonPressed()
+{
+	if (CombatComponent)
+	{
+		CombatComponent->SwapWeapons();
+	}
+}
+
 void ABugCharacter::Jump()
 {
 	if (bIsCrouched)
@@ -239,51 +295,90 @@ void ABugCharacter::Jump()
 	}
 }
 
-float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
-	class AController* EventInstigator, AActor* DamageCauser)
+float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
 {
 	if (bElimmed) return 0.0f;
-	if (HasAuthority())
-	{	// ListenServer本地需手动调用伤害处理
-		if (DamageEvent.IsOfType(FRadialDamageEvent::ClassID))
+	
+	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	float DamageToHealth = ActualDamage;
+	if (GetCurrentShield() > 0.f)
+	{
+		if (GetCurrentShield() >= ActualDamage)
 		{
-			const FRadialDamageEvent* RadialEvent = (const FRadialDamageEvent*)&DamageEvent;
-			GetHit(RadialEvent->Origin);
+			SetCurrentShield(FMath::Clamp(GetCurrentShield() - ActualDamage, 0.f, GetMaxShield()));
+			DamageToHealth = 0.f;
+			OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
 		}
-		CurrentHealth = FMath::Clamp(CurrentHealth - DamageAmount, 0.f, MaxHealth);
-		OnHealthChanged.Broadcast(CurrentHealth, MaxHealth); 
-		if (CurrentHealth == 0.f)
+		else
 		{
-			ACommonGameMode* GameMode = GetWorld()->GetAuthGameMode<ACommonGameMode>();
-			if (GameMode)
-			{
-				if (GetController())
-				{
-					GameMode->PlayerEliminated(this, GetController(), EventInstigator);
-				}
-			}
+			DamageToHealth = FMath::Clamp(DamageToHealth - GetCurrentShield(), 0.f, ActualDamage);
+			SetCurrentShield(0.f);
+			OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
 		}
 	}
 	
+	if (HasAuthority())
+	{
+		if (DamageEvent.IsOfType(FRadialDamageEvent::ClassID))
+		{
+			const FRadialDamageEvent* RadialEvent = static_cast<const FRadialDamageEvent*>(&DamageEvent);
+			GetHit(RadialEvent->Origin);
+		}
+		CurrentHealth = FMath::Clamp(CurrentHealth - DamageToHealth, 0.f, MaxHealth);
+		OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+		if (CurrentHealth <= 0.f)
+		{
+			ACommonGameMode* GameMode = GetWorld()->GetAuthGameMode<ACommonGameMode>();
+			if (GameMode && GetController())
+			{
+				GameMode->PlayerEliminated(this, GetController(), EventInstigator);
+			}
+		}
+	}
+
+	return ActualDamage;
+}
+
+AWeapon* ABugCharacter::GetNearestWeaponInArray()
+{
+
+	if (OverlappingWeapons.Num() == 0) return nullptr;
+
+	AWeapon* BestMatch = nullptr;
+	float MinDistSq = MAX_FLT;
+	FVector Loc = GetActorLocation();
+
+	for (AWeapon* W : OverlappingWeapons)
+	{
+		if (W)
+		{
+			float DistSq = FVector::DistSquared(Loc, W->GetActorLocation());
+			if (DistSq < MinDistSq)
+			{
+				MinDistSq = DistSq;
+				BestMatch = W;
+			}
+		}
+	}
+	return BestMatch;
 	
-	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
 
 void ABugCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
 {
-	if (OverlappingWeapon)
-	{
-		OverlappingWeapon->ShowPickupWidget(true, this);
-	}
-	if (LastWeapon)
-	{
-		LastWeapon->ShowPickupWidget(false, this);
-	}
+	if (LastWeapon) LastWeapon->ShowPickupWidget(false);
+	if (OverlappingWeapon) OverlappingWeapon->ShowPickupWidget(true, this);
 }
+
 
 void ABugCharacter::OnRep_Health()
 {
 	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+}
+
+void ABugCharacter::OnRep_Shield()
+{
+	OnShieldChanged.Broadcast(CurrentShield, MaxShield);
 }
 
 
@@ -297,13 +392,15 @@ void ABugCharacter::RPC_ServerEquipButtonPressed_Implementation()
 
 void ABugCharacter::RPC_Sprint_Implementation(bool bIsSprint)
 {
+	bSprintButtonPressed = bIsSprint;
+
 	if (bIsSprint)
 	{
-		SetMaxWalkSpeed(600.f);
+		SetMaxWalkSpeed(SprintMaxWalkSpeed);
 	}
 	else
 	{
-		SetMaxWalkSpeed(300.f);
+		SetMaxWalkSpeed(DefaultMaxWalkSpeed);
 	}
 	
 }
@@ -407,13 +504,42 @@ void ABugCharacter::HideIfCameraClose(float DeltaTime)
 		}
 	}
 	
-	if (CombatComponent && CombatComponent->EquippedWeapon)
+	if (CombatComponent && CombatComponent->PrimaryWeapon)
 	{
-		CombatComponent->EquippedWeapon->UpdateWeaponDither(CurrentDitherAlpha);
+		CombatComponent->PrimaryWeapon->UpdateWeaponDither(CurrentDitherAlpha);
 	}
 }
 
 
+void ABugCharacter::UpdateNetworkStats()
+{
+	if (APlayerState* PS = GetPlayerState())
+	{
+		CurrentPing = PS->GetPingInMilliseconds();
+	}
+	
+	if (UNetDriver* NetDriver = GetWorld()->GetNetDriver())
+	{
+		UNetConnection* NetConn = NetDriver->ServerConnection; 
+		
+		if (NetConn)
+		{
+			float InLoss = NetConn->GetInLossPercentage().GetAvgLossPercentage();
+			float OutLoss = NetConn->GetOutLossPercentage().GetAvgLossPercentage();
+    
+			PacketLossPercentage = FMath::Max(InLoss, OutLoss);
+		}
+	}
+	
+	bool bShouldWarn = (CurrentPing > 200.f || PacketLossPercentage > 5.f);
+	
+	if (bLastNetWarning != bShouldWarn)
+	{
+		bLastNetWarning = bShouldWarn;
+		OnNetWarning.Broadcast(bShouldWarn);
+	}
+	
+}
 
 void ABugCharacter::GetHit(const FVector& HitPoint)
 {
@@ -423,33 +549,52 @@ void ABugCharacter::GetHit(const FVector& HitPoint)
 }
 
 
-void ABugCharacter::SetOverlappingWeapon(AWeapon* Weapon)
+void ABugCharacter::SetOverlappingWeapon(AWeapon* Weapon, bool bIsOverlapping)
 {
-	if (IsLocallyControlled())
+	// 1. 更新维护本地数组
+	if (Weapon)
 	{
-		if (Weapon == nullptr)
-        {
-        	if (OverlappingWeapon)
-        	{
-        		OverlappingWeapon->ShowPickupWidget(false, this);
-        	}
-        }
-	}
-
-
-	OverlappingWeapon = Weapon;
-	
-	if (IsLocallyControlled())
-	{
-		if (OverlappingWeapon)
+		if (bIsOverlapping)
 		{
-			OverlappingWeapon->ShowPickupWidget(true, this);
+			OverlappingWeapons.AddUnique(Weapon);
+		}
+		else
+		{
+			// 离开范围时，确保关掉该武器的 UI（预防性）
+			if (IsLocallyControlled()) Weapon->ShowPickupWidget(false);
+			OverlappingWeapons.Remove(Weapon);
 		}
 	}
+
+	// 2. 找到当前最新的最近武器
+	AWeapon* NewNearest = GetNearestWeaponInArray();
+
+	// 3. UI 切换逻辑 (仅本地客户端执行)
+	if (IsLocallyControlled())
+	{
+		if (NewNearest != OverlappingWeapon)
+		{
+			if (OverlappingWeapon) 
+			{
+				OverlappingWeapon->ShowPickupWidget(false);
+			}
+
+			if (NewNearest)
+			{
+				NewNearest->ShowPickupWidget(true, this);
+			}
+		}
+	}
+	
+	OverlappingWeapon = NewNearest;
 }
 
 void ABugCharacter::SetMaxWalkSpeed(float InMaxWalkSpeed)
 {
+	if (BuffComponent)
+	{
+		if (BuffComponent->bSpeedBuffing) return;
+	}
 	if (HasAuthority())
 	{
 		ServerMaxWalkSpeed = InMaxWalkSpeed;
@@ -465,9 +610,9 @@ FVector ABugCharacter::GetHitTarget() const
 
 AWeapon* ABugCharacter::GetEquippedWeapon() const
 {
-	if (CombatComponent && CombatComponent->EquippedWeapon)
+	if (CombatComponent && CombatComponent->PrimaryWeapon)
 	{
-		return CombatComponent->EquippedWeapon;
+		return CombatComponent->PrimaryWeapon;
 	}
 	return nullptr;
 }
@@ -505,7 +650,7 @@ void ABugCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		}
 		if (EquipAction)
 		{
-			EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Triggered, this, &ABugCharacter::EquipButtonPressed);
+			EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Started, this, &ABugCharacter::EquipButtonPressed);
 		}
 		if (CrouchAction)
 		{
@@ -535,6 +680,14 @@ void ABugCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		{
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &ABugCharacter::ReloadButtonPressed);
 		}
+		if (GrenadeTossAction)
+		{
+			EnhancedInputComponent->BindAction(GrenadeTossAction, ETriggerEvent::Started, this, &ABugCharacter::GrenadeButtonPressed);
+		}
+		if (SwapAction)
+		{
+			EnhancedInputComponent->BindAction(SwapAction, ETriggerEvent::Started, this, &ABugCharacter::SwapButtonPressed);
+		}
 	}
 }
 
@@ -545,15 +698,30 @@ void ABugCharacter::PostInitializeComponents()
 	{
 		CombatComponent->BugCharacter = this;
 	}
+	if (BuffComponent)
+	{
+		BuffComponent->BugCharacter = this;
+		BuffComponent->SetInitialSpeed(GetCharacterMovement()->MaxWalkSpeed, GetCharacterMovement()->MaxWalkSpeedCrouched);
+		BuffComponent->SetInitialJumpVelocity(GetCharacterMovement()->JumpZVelocity);
+	}
 }
 
 
 void ABugCharacter::EliminateCharacter()
 {
-	if (CombatComponent && CombatComponent->EquippedWeapon)
+	if (CombatComponent)
 	{
-		CombatComponent->EquippedWeapon->DropWeapon();
-		CombatComponent->EquippedWeapon = nullptr;
+		if (CombatComponent->PrimaryWeapon)
+		{
+			CombatComponent->PrimaryWeapon->DropWeapon();
+			CombatComponent->PrimaryWeapon = nullptr;
+		}
+		if (CombatComponent->SecondaryWeapon)
+		{
+			CombatComponent->SecondaryWeapon->DropWeapon();
+			CombatComponent->SecondaryWeapon = nullptr;
+		}
+		
 	}
 	/*// 清理UI
 	UBugUISubsystem* UISubsystem = UBugUISubsystem::Get(GetController());
@@ -637,12 +805,12 @@ void ABugCharacter::ElimTimerFinished()
 
 void ABugCharacter::PlayFireMontage()
 {
-	if (!CombatComponent || CombatComponent->EquippedWeapon == nullptr) return;
+	if (!CombatComponent || CombatComponent->PrimaryWeapon == nullptr) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && FireMontage)
 	{
 		FName SectionName;
-		switch (CombatComponent->EquippedWeapon->GetWeaponType())
+		switch (CombatComponent->PrimaryWeapon->GetWeaponType())
 		{
 		case EWeaponType::EWT_AssaultRifle:
 			SectionName = FName("Rifle");
@@ -655,6 +823,9 @@ void ABugCharacter::PlayFireMontage()
 			break;
 		case EWeaponType::EWT_Shotgun:
 			SectionName = FName("Shotgun");
+			break;
+		case EWeaponType::EWT_SniperRifle:
+			SectionName = FName("SniperRifle");
 			break;
 		case EWeaponType::EWT_Max:
 			break;
@@ -742,12 +913,12 @@ void ABugCharacter::PlayDeathMontage(const FVector& HitPoint)
 
 void ABugCharacter::PlayEquipMontage()
 {
-	if (!CombatComponent || CombatComponent->EquippedWeapon == nullptr) return;
+	if (!CombatComponent || CombatComponent->PrimaryWeapon == nullptr) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && EquipMontage)
 	{
 		FName SectionName;
-		switch (CombatComponent->EquippedWeapon->GetWeaponType())
+		switch (CombatComponent->PrimaryWeapon->GetWeaponType())
 		{
 		case EWeaponType::EWT_AssaultRifle:
 			SectionName = FName("Rifle");
@@ -761,6 +932,9 @@ void ABugCharacter::PlayEquipMontage()
 		case EWeaponType::EWT_Shotgun:
 			SectionName = FName("Rifle"); // 暂时用rifle替代
 			break;
+		case EWeaponType::EWT_SniperRifle:
+			SectionName = FName("Rifle"); // 暂时用rifle替代
+			break;
 		case EWeaponType::EWT_Max:
 			break;
 		}
@@ -772,12 +946,12 @@ void ABugCharacter::PlayEquipMontage()
 
 void ABugCharacter::PlayReloadMontage()
 {
-	if (!CombatComponent || CombatComponent->EquippedWeapon == nullptr) return;
+	if (!CombatComponent || CombatComponent->PrimaryWeapon == nullptr) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && ReloadMontage)
 	{
 		FName SectionName;
-		switch (CombatComponent->EquippedWeapon->GetWeaponType())
+		switch (CombatComponent->PrimaryWeapon->GetWeaponType())
 		{
 		case EWeaponType::EWT_AssaultRifle:
 			SectionName = FName("Rifle");
@@ -786,9 +960,12 @@ void ABugCharacter::PlayReloadMontage()
 			SectionName = FName("Pistol");
 			break;
 		case EWeaponType::EWT_SubmachineGun:
-			SectionName = FName("SMG");
+			SectionName = FName("Pistol"); // 暂时用Pistol替代
 			break;
 		case EWeaponType::EWT_Shotgun:
+			SectionName = FName("Rifle"); // 暂时用rifle替代
+			break;
+		case EWeaponType::EWT_SniperRifle:
 			SectionName = FName("Rifle"); // 暂时用rifle替代
 			break;
 		case EWeaponType::EWT_Max:
@@ -796,6 +973,16 @@ void ABugCharacter::PlayReloadMontage()
 		}
 		AnimInstance->Montage_Play(ReloadMontage);
 		AnimInstance->Montage_JumpToSection(SectionName, ReloadMontage);
+	}
+}
+
+void ABugCharacter::PlayGrenadeTossMontage()
+{
+	if (!CombatComponent || CombatComponent->PrimaryWeapon == nullptr) return;
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && GrenadeTossMontage)
+	{
+		AnimInstance->Montage_Play(GrenadeTossMontage);
 	}
 }
 
@@ -812,6 +999,14 @@ void ABugCharacter::OnEquipAnimationFinished()
 	if (CombatComponent)
 	{
 		CombatComponent->OnEquipAnimationFinished();
+	}
+}
+
+void ABugCharacter::OnTossGrenadeFinished()
+{
+	if (CombatComponent)
+	{
+		CombatComponent->OnTossGrenadeAnimationFinished();
 	}
 }
 

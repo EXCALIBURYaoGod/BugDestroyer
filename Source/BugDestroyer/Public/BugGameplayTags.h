@@ -26,20 +26,33 @@ namespace BugGameplayTags
 	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_CharacterScreen);
 	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_MatchBeforeStartScreen);
 	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_MatchCooldownScreen);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Widget_SniperScopeScreen);
 	
 	// Soft Options image Tags
 	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Bug_Image_TestImage);
 	
-	// GameplayTags
+	//** GameplayTags //
 	
-		// DamageTags
-		BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_Damage_Bullet);
-		// DamageTags
+	// DamageTags
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_Damage_Bullet);
+	// DamageTags
+
+	// ImpactTags
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_Impact_Character);
+	// ImpactTags
+
+	// PickupTags
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupBuff_Health);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupBuff_Shield);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupBuff_SpeedBuff);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupBuff_JumpBuff);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupAmmo_AR);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupAmmo_SMG);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupAmmo_PlasmaPistol);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupAmmo_Shotgun);
+	BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_PickupAmmo_Sniper);
+	// PickupTags
 	
-		// ImpactTags
-		BUGDESTROYER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_Impact_Character);
-		// ImpactTags
-	
-	// GameplayTags
+	//** GameplayTags //
 	
 }

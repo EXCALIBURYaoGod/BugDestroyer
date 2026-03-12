@@ -36,10 +36,10 @@ void AShotGunWeapon::Fire(const FVector& HitTarget)
 		for (uint32 i = 0; i < NumberOfPellets; i++)
 		{
 			LienTraceEnd = TraceEndWithScatter(MuzzleSocketLocation, HitTarget);
-			FHitResult FireHit;
 			UWorld* World = GetWorld();
 			if (World)
 			{
+				FHitResult FireHit;
 				FCollisionQueryParams QueryParams;
 				QueryParams.AddIgnoredActor(this); 
 				QueryParams.AddIgnoredActor(OwnerPawn);

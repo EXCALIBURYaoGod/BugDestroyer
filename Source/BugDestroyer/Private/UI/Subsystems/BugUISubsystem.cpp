@@ -154,3 +154,25 @@ void UBugUISubsystem::NotifyPawnResubscribed(APawn* NewPawn)
 	}
 }
 
+UWidget_ActivatableBase* UBugUISubsystem::PushWidgetToStack(const FGameplayTag& InWidgetStackTag, UClass* InWidgetClass)
+{
+	if (!InWidgetClass || !CreatedPrimaryLayout) return nullptr;
+	// 1. 查找对应的 CommonActivatableWidgetContainer (Stack)
+	UCommonActivatableWidgetContainerBase* FoundWidgetStack = CreatedPrimaryLayout->FindWidgetStackByTag(InWidgetStackTag);
+	if (FoundWidgetStack)
+	{
+
+		// 2. 同步添加并返回实例
+		return FoundWidgetStack->AddWidget<UWidget_ActivatableBase>(InWidgetClass);
+	}
+	return nullptr;
+}
+
+UWidget_ActivatableBase* UBugUISubsystem::PushSoftWidgetToStack(const FGameplayTag& InWidgetStackTag,
+	TSoftClassPtr<UWidget_ActivatableBase> InSoftWidgetClass)
+{
+	if (InSoftWidgetClass.IsNull()) return nullptr;
+	UClass* LoadedClass = InSoftWidgetClass.LoadSynchronous();
+	return PushWidgetToStack(InWidgetStackTag, LoadedClass);
+}
+

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
 #include "BugTypes/BugEnumTypes.h"
+#include "Weapons/Weapon.h"
 #include "BugAnimInstance.generated.h"
 
 class ABugCharacter;
@@ -25,7 +26,7 @@ public:
 
 	
 protected:
-	
+	void ShouldUseAimOffsetsForRun();
 	
 private:
 	UPROPERTY(BlueprintReadOnly, Category= "Character", meta=(AllowPrivateAccess=true))
@@ -42,6 +43,8 @@ private:
 	bool bWantsToMove;
 	UPROPERTY(BlueprintReadOnly, Category= "Character", meta=(AllowPrivateAccess=true))
 	bool bElimmed = false;
+	UPROPERTY(BlueprintReadOnly, Category= "CharacterEquip", meta=(AllowPrivateAccess=true))
+	EWeaponType WeaponType;
 	
 	// bIsAccelerating 指是否有移动action按键输入
 	UPROPERTY(BlueprintReadOnly, Category= "CharacterMovement", meta=(AllowPrivateAccess=true))
@@ -60,6 +63,10 @@ private:
 	FTransform LeftHandTransform;
 	UPROPERTY(BlueprintReadOnly, Category= "CharacterMovement", meta=(AllowPrivateAccess=true))
 	ETurningInPlace TurningInPlace = ETurningInPlace::ETIP_Center;
+	UPROPERTY(BlueprintReadOnly, Category= "Character", meta=(AllowPrivateAccess=true))
+	bool bUseAimOffsetsAnim = true;
+	UPROPERTY(BlueprintReadOnly, Category= "Character", meta=(AllowPrivateAccess=true))
+	bool bTossingGrenade = false;
 	UPROPERTY(BlueprintReadOnly, Category= "CharacterMovement", meta=(AllowPrivateAccess=true))
 	FRotator RightHandRotation;
 	
@@ -74,6 +81,10 @@ private:
 	void AnimNotify_EquipAnimFinished();
 	UFUNCTION()
 	void AnimNotify_ReloadFinished();
+	UFUNCTION()
+	void AnimNotify_TossGrenadeFinished();
+	UFUNCTION()
+	void AnimNotify_LaunchGrenade();
 	
 public:
 	UFUNCTION(BlueprintCallable, Category = "AnimationNotifyCalls")

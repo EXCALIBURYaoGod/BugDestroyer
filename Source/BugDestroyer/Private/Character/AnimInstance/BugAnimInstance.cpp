@@ -17,6 +17,33 @@ void UBugAnimInstance::NativeInitializeAnimation()
 	
 }
 
+void UBugAnimInstance::ShouldUseAimOffsetsForRun()
+{
+	switch (WeaponType)
+	{
+	case EWeaponType::EWT_AssaultRifle:
+		bUseAimOffsetsAnim = true;
+		break;
+	case EWeaponType::EWT_RocketLauncher:
+		bUseAimOffsetsAnim = true;
+		break;
+	case EWeaponType::EWT_Shotgun:
+		bUseAimOffsetsAnim = true;
+		break;
+	case EWeaponType::EWT_PlasmaPistol:
+		bUseAimOffsetsAnim = Speed > 360.f ? false : true;
+		break;
+	case EWeaponType::EWT_SubmachineGun:
+		bUseAimOffsetsAnim = Speed > 360.f ? false : true;
+		break;
+	case EWeaponType::EWT_SniperRifle:
+		bUseAimOffsetsAnim = true;
+		break;
+	case EWeaponType::EWT_Max:
+		break;
+	}
+}
+
 void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
@@ -34,6 +61,7 @@ void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		bAiming = Character->IsAiming();
 		bElimmed = Character->IsElimmed();
 		bWantsToMove = Character->IsWantsToMove();
+		bTossingGrenade = Character->GetCombatState() == ECombatState::ECS_TossingGrenade;
 		
 		// 计算移动时的Strafing和lean
 		FRotator AimRotation = Character->GetBaseAimRotation();
@@ -57,6 +85,8 @@ void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		// 计算AimOffsets
 		if (bWeaponEquipped)
 		{
+			WeaponType = Character->GetEquippedWeapon()->GetWeaponType();
+			ShouldUseAimOffsetsForRun();
 			FRotator CurrentRotation = Character->GetBaseAimRotation();
 			CurrentRotation.Yaw = Character->GetNetEstimatedAimYaw();
 			StartingAimRotation = Character->GetActorRotation();
@@ -94,6 +124,7 @@ void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		// Fabric Ik
 		if (bWeaponEquipped)
 		{
+			
 			AWeapon* EquippedWeapon = Character->GetEquippedWeapon();
 			if (EquippedWeapon && EquippedWeapon->GetWeaponMesh() && Character->GetMesh())
 			{
@@ -165,6 +196,22 @@ void UBugAnimInstance::AnimNotify_ReloadFinished()
 	if (Character)
 	{
 		Character->OnReloadAnimationFinished();
+	}
+}
+
+void UBugAnimInstance::AnimNotify_TossGrenadeFinished()
+{
+	if (Character)
+	{
+		Character->OnTossGrenadeFinished();
+	}
+}
+
+void UBugAnimInstance::AnimNotify_LaunchGrenade()
+{
+	if (Character)
+	{
+		Character->LaunchGrenade();
 	}
 }
 

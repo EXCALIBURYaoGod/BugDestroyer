@@ -34,12 +34,12 @@ protected:
 	TMap<FGameplayTag, FImpactEffectData> TaggedImpactEffects;
 	UPROPERTY(EditAnywhere)
 	UBoxComponent* CollisionBox;
+	UPROPERTY(VisibleAnywhere)
+	UProjectileMovementComponent* ProjectileMovementComponent;
 	
 private:
 	UPROPERTY(VisibleAnywhere)
 	UStaticMeshComponent* StaticMesh;
-	UPROPERTY(VisibleAnywhere)
-	UProjectileMovementComponent* ProjectileMovementComponent;
 	UPROPERTY(EditAnywhere)
 	UParticleSystem* Tracer;
 	UPROPERTY(VisibleAnywhere)

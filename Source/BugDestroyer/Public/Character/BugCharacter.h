@@ -5,12 +5,14 @@
 #include "CoreMinimal.h"
 #include "GameplayTagAssetInterface.h"
 #include "InputActionValue.h"
+#include "Components/BuffComponent.h"
 #include "Components/CombatComponent.h"
 #include "Components/TimelineComponent.h"
 #include "GameFramework/Character.h"
 #include "Interfaces/InteractWithCrosshairsInterface.h"
 #include "BugCharacter.generated.h"
 
+class UBuffComponent;
 class UCombatComponent;
 class AWeapon;
 class USpringArmComponent;
@@ -19,8 +21,11 @@ class UInputAction;
 class UInputMappingContext;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedSignature, float, NewHealth, float, MaxHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnShieldChangedSignature, float, NewShield, float, MaxShield);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponChangedSignature, AWeapon*, NewWeapon);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAmmoLeftChangedSignature, int32, CurrentAmmo, int32, MagCapacity, int32, AmmoLeft);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrenadeAmountChangedSignature, int32, CurrentGrenade);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNetWarningSignature, bool, bIsWarning);
 
 /**
  *	当前作为快速验证原型的角色类
@@ -47,12 +52,11 @@ public:
 	void EliminateCharacter();
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastRPC_EliminateCharacter();
-
-	virtual void GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const override
+	FORCEINLINE virtual void GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const override
 	{
-		// 把你角色身上的标签塞进去
 		TagContainer = OwnedTags;
 	}
+	void PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount);
 	
 protected:
 	virtual void BeginPlay() override;
@@ -78,6 +82,10 @@ protected:
 	UInputAction* FireAction;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* ReloadAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* GrenadeTossAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SwapAction;
 	bool bWantsToMove = false;
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
@@ -92,6 +100,8 @@ protected:
 	void StopFiring();
 	void ReloadButtonPressed();
 	void ReleaseMoveButton();
+	void GrenadeButtonPressed();
+	void SwapButtonPressed();
 	// begin Character Interface
 	virtual void Jump() override;
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
@@ -106,8 +116,13 @@ private:
 	USpringArmComponent* CameraBoom;
 	UPROPERTY(VisibleAnywhere, Category = Camera)
 	UCameraComponent* FollowCamera;
+	UPROPERTY(EditAnywhere, Category= "Grenade")
+	UStaticMeshComponent* AttachedGrenadeMesh;
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	AWeapon* OverlappingWeapon;
+	UPROPERTY(VisibleAnywhere, Category = "Equip")
+	TArray<AWeapon*> OverlappingWeapons;
+	AWeapon* GetNearestWeaponInArray();
 	UFUNCTION()
 	void OnRep_OverlappingWeapon(AWeapon* LastWeapon);
 	
@@ -124,24 +139,43 @@ private:
 	void OnRep_Health();
 	// Health
 	
+	// Shield
+	UPROPERTY(EditAnywhere, Category = "Player States")
+	float MaxShield = 100.f;
+	UPROPERTY(ReplicatedUsing = OnRep_Shield, VisibleAnywhere, Category = "Player States")
+	float CurrentShield = 100.f;
+	UFUNCTION()
+	void OnRep_Shield();
+	// Shield
+	
 	UPROPERTY(VisibleAnywhere)
 	UCombatComponent* CombatComponent;
+	UPROPERTY(VisibleAnywhere)
+	UBuffComponent* BuffComponent;
 	UFUNCTION(Server, Reliable)
 	void RPC_ServerEquipButtonPressed();
 	UFUNCTION(Server, Reliable)
 	void RPC_Sprint(bool bIsSprint);
 	UPROPERTY(ReplicatedUsing = OnRep_MaxWalkSpeed)
 	float ServerMaxWalkSpeed;
-	UPROPERTY(EditAnywhere, Category= "Combat")
+	UPROPERTY(EditAnywhere, Category = "Speed")
+	float DefaultMaxWalkSpeed = 350.f;
+	UPROPERTY(EditAnywhere, Category = "Speed")
+	float SprintMaxWalkSpeed = 600.f;
+	bool bSprintButtonPressed = false;
+	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* FireMontage;
-	UPROPERTY(EditAnywhere, Category= "Combat")
+	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* HitReactMontage;
-	UPROPERTY(EditAnywhere, Category= "Combat")
+	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* DeathMontage;
-	UPROPERTY(EditAnywhere, Category= "Combat")
+	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* EquipMontage;
-	UPROPERTY(EditAnywhere, Category= "Combat")
+	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* ReloadMontage;
+	UPROPERTY(EditAnywhere, Category= "Montages")
+	UAnimMontage* GrenadeTossMontage;
+	
 	UPROPERTY(ReplicatedUsing = OnRep_ProjectileImpactPoint, VisibleAnywhere, Category= "Combat")
 	FVector_NetQuantize ProjectileImpactPoint;	
 	
@@ -181,21 +215,26 @@ private:
 	float CurrentDitherAlpha =  1.f;
 	UPROPERTY(VisibleAnywhere, Category = "Character")
 	TArray<UMaterialInstanceDynamic*> DynamicMeshMID;
+	FTimerHandle NetStatTimerHandle;
+	void UpdateNetworkStats();
+	UPROPERTY(BlueprintReadOnly, Category = "Network", meta = (AllowPrivateAccess = true))
+	float CurrentPing;
+	UPROPERTY(BlueprintReadOnly, Category = "Network", meta = (AllowPrivateAccess = true))
+	float PacketLossPercentage;
+	bool bLastNetWarning = false;
 	
 public:
 	void GetHit(const FVector& HitPoint);
 	// Only Server Calls
-	void SetOverlappingWeapon(AWeapon* Weapon);
+	void SetOverlappingWeapon(AWeapon* Weapon, bool bIsOverlapping);
 	void SetMaxWalkSpeed(float InMaxWalkSpeed);
 	
 	// Animation Notify Callbacks
-	UFUNCTION()
 	void OnReloadAnimationFinished();
-	UFUNCTION()
 	void OnEquipAnimationFinished();
-	
-	// Only Server Calls
-	FORCEINLINE bool IsWeaponEquipped() const { return CombatComponent && CombatComponent->EquippedWeapon; }
+	void OnTossGrenadeFinished();
+
+	FORCEINLINE bool IsWeaponEquipped() const { return CombatComponent && CombatComponent->PrimaryWeapon; }
 	FORCEINLINE bool IsAiming() const { return CombatComponent && CombatComponent->bAiming; }
 	FORCEINLINE float GetNetEstimatedAimYaw() const { return NetEstimatedAimYaw; }
 	FORCEINLINE UCameraComponent* GetFollowCamera() const { return FollowCamera; }
@@ -206,6 +245,17 @@ public:
 	FORCEINLINE void SetCombatState(ECombatState NewState) const { CombatComponent->CombatState = NewState; CombatComponent->OnCombatStateChanged(); }
 	FORCEINLINE ECombatState GetCombatState() const { return CombatComponent->CombatState; }
 	FORCEINLINE bool IsWantsToMove() const{ return bWantsToMove; }
+	FORCEINLINE UStaticMeshComponent* GetAttachedGrenade() const { return AttachedGrenadeMesh; }
+	FORCEINLINE void LaunchGrenade() const{ CombatComponent->LaunchGrenade(); }
+	FORCEINLINE int32 GetGrenadeAmount() const { return CombatComponent->GrenadeAmount; }
+	FORCEINLINE void Healing (float HealAmount, float HealingTime) const{ if (BuffComponent) BuffComponent->Heal(HealAmount, HealingTime); }
+	FORCEINLINE void ShieldReplenish (float ShieldAmount, float ShieldReplenishTime) const{ if (BuffComponent) BuffComponent->ShieldReplenish(ShieldAmount, ShieldReplenishTime); }
+	
+	FORCEINLINE void BuffingSpeed(float BuffBaseSpeed, float BuffCrouchSpeed, float BuffSpeedTime) const{ if (BuffComponent) BuffComponent->BuffSpeed(BuffBaseSpeed, BuffCrouchSpeed, BuffSpeedTime); }
+	FORCEINLINE bool IsSprintButtonPressed() const { return bSprintButtonPressed; }
+	FORCEINLINE float GetDefaultMaxWalkSpeed() const { return DefaultMaxWalkSpeed; }
+	FORCEINLINE float GetSprintMaxWalkSpeed() const { return SprintMaxWalkSpeed; }
+	FORCEINLINE void BuffingJump(float JumpVelocity, float JumpBuffTime) const { if (BuffComponent) BuffComponent->BuffJump(JumpVelocity, JumpBuffTime); }
 	
 	FVector GetHitTarget() const;
 	AWeapon* GetEquippedWeapon() const;
@@ -214,6 +264,7 @@ public:
 	void PlayDeathMontage(const FVector& HitPoint);
 	void PlayEquipMontage();
 	void PlayReloadMontage();
+	void PlayGrenadeTossMontage();
 	// Health
 	UPROPERTY(BlueprintAssignable)
 	FOnHealthChangedSignature OnHealthChanged;
@@ -226,9 +277,27 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE void SetCurrentHealth(float NewCurrentHealth) { CurrentHealth = NewCurrentHealth; }
 	// Health
+	
+	// Shield
+	UPROPERTY(BlueprintAssignable)
+	FOnShieldChangedSignature OnShieldChanged;
+	UFUNCTION(BlueprintCallable)
+	FORCEINLINE float GetMaxShield() const { return MaxShield; }
+	UFUNCTION(BlueprintCallable)
+	FORCEINLINE void SetMaxShield(float NewMaxShield) { MaxShield = NewMaxShield; }
+	UFUNCTION(BlueprintCallable)
+	FORCEINLINE float GetCurrentShield() const { return CurrentShield; }
+	UFUNCTION(BlueprintCallable)
+	FORCEINLINE void SetCurrentShield(float NewCurrentShield) { CurrentShield = NewCurrentShield; }
+	// Shield
+	
 	UPROPERTY(BlueprintAssignable)
 	FOnWeaponChangedSignature OnWeaponChanged;
 	UPROPERTY(BlueprintAssignable)
 	FOnAmmoLeftChangedSignature OnAmmoLeftChanged;
+	UPROPERTY(BlueprintAssignable)
+	FOnGrenadeAmountChangedSignature OnGrenadeAmountChanged;
+	UPROPERTY(BlueprintAssignable)
+	FOnNetWarningSignature OnNetWarning;
 	
 };

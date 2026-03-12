@@ -60,6 +60,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BugDestroyer|UI")
 	void NotifyPawnResubscribed(APawn* NewPawn);
 	
+	/** 同步推入 Widget 到指定的栈 */
+	UWidget_ActivatableBase* PushWidgetToStack(const FGameplayTag& InWidgetStackTag, UClass* InWidgetClass);
+
+	/** 同步加载并推入 Widget（会产生微量阻塞） */
+	UWidget_ActivatableBase* PushSoftWidgetToStack(const FGameplayTag& InWidgetStackTag, TSoftClassPtr<UWidget_ActivatableBase> InSoftWidgetClass);
+	
 private:
 	UPROPERTY(Transient)
 	UWidget_PrimaryLayout* CreatedPrimaryLayout;

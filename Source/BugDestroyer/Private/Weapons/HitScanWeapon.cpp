@@ -3,6 +3,7 @@
 
 #include "Weapons/HitScanWeapon.h"
 
+#include "DebugHelper.h"
 #include "Character/BugCharacter.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Kismet/GameplayStatics.h"
@@ -12,7 +13,7 @@
 
 AHitScanWeapon::AHitScanWeapon()
 {
-
+	FireSphereRadius = DefaultFireSphereRadius;
 }
 
 
@@ -33,7 +34,9 @@ void AHitScanWeapon::Fire(const FVector& HitTarget)
 		
 		FTransform SocketTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
 		FVector MuzzleSocketLocation = SocketTransform.GetLocation();
-		FVector LienTraceEnd = MuzzleSocketLocation + (HitTarget - MuzzleSocketLocation) * 1.25f;
+		FVector LienTraceEnd = bUseScatter? 
+		TraceEndWithScatter(MuzzleSocketLocation, HitTarget) : MuzzleSocketLocation + (HitTarget - MuzzleSocketLocation) * 1.25f;
+
 		FHitResult FireHit;
 		UWorld* World = GetWorld();
 		if (World)
@@ -100,7 +103,7 @@ void AHitScanWeapon::Fire(const FVector& HitTarget)
 						FireHit.ImpactPoint
 					);
 				}
-				
+				BeamEnd = FireHit.ImpactPoint;
 			}
 			if (BeamParticle)
 			{
@@ -143,7 +146,7 @@ FVector AHitScanWeapon::TraceEndWithScatter(const FVector& TraceStart, const FVe
 {
 	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
 	FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
-	FVector RandVector = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+	FVector RandVector = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, FireSphereRadius);
 	FVector EndLoc = SphereCenter + RandVector;
 	FVector ToEndLoc = EndLoc - TraceStart;
 	return FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size());

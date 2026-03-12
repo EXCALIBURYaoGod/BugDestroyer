@@ -1,10 +1,11 @@
-﻿// Copyright @FpsLuping all reserved
+// Copyright @FpsLuping all reserved
 
 
 #include "Controllers/GameCommonPlayerController.h"
 
 #include "BugGameplayTags.h"
 #include "BugUIFunctionLibrary.h"
+#include "DebugHelper.h"
 #include "Blueprint/UserWidget.h"
 #include "Character/BugCharacter.h"
 #include "GameFramework/GameMode.h"
@@ -57,6 +58,25 @@ void AGameCommonPlayerController::Client_ShowMatchCooldown_Implementation(const 
 			Screen->OnWinnerNameChangedCallback(WinnerNames);
 		}
 	});
+}
+
+void AGameCommonPlayerController::ShowSniperScopeWidget(bool bIsShow)
+{
+	if (bIsShow)
+	{
+		TSoftClassPtr<UWidget_ActivatableBase> ScopeClass = UBugUIFunctionLibrary::GetSoftWidgetClassByTag(BugGameplayTags::Bug_Widget_SniperScopeScreen);
+		CachedSniperScopeWidget = UBugUISubsystem::Get(this)->PushSoftWidgetToStack(
+			BugGameplayTags::Bug_WidgetStack_Modal, 
+			ScopeClass
+		);
+	}
+	else
+	{
+		if (CachedSniperScopeWidget)
+		{
+			CachedSniperScopeWidget->DeactivateWidget();
+		}
+	}
 }
 
 void AGameCommonPlayerController::OnPossess(APawn* aPawn)

@@ -10,6 +10,7 @@
 #include "Components/WidgetComponent.h"
 #include "Weapons/Casing.h"
 #include "Engine/SkeletalMeshSocket.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
 
@@ -82,7 +83,7 @@ void AWeapon::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* 
 		ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
         if (BugCharacter && PickupWidget)
         {
-        	BugCharacter->SetOverlappingWeapon(this);
+        	BugCharacter->SetOverlappingWeapon(this, true);
         }
 	}
 
@@ -91,15 +92,19 @@ void AWeapon::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* 
 void AWeapon::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
+	ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
+	if (BugCharacter && PickupWidget && BugCharacter->IsLocallyControlled())
+	{
+		ShowPickupWidget(false);
+	}
 	if (HasAuthority())
 	{
-		ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
-        if (BugCharacter && PickupWidget)
-        {	        	BugCharacter->SetOverlappingWeapon(nullptr);
-
-        }
+		if (BugCharacter && PickupWidget)
+		{
+			BugCharacter->SetOverlappingWeapon(this, false);
+		}
 	}
-
+	
 }
 
 void AWeapon::OnRep_WeaponState()
@@ -116,39 +121,77 @@ void AWeapon::OnRep_CurrentAmmo()
 	}
 }
 
+void AWeapon::AttachToCharacter(const FName& SocketName)
+{
+	if (ABugCharacter* BugCharacter = Cast<ABugCharacter>(GetOwner()))
+	{
+		CachedOwningBugCharacterForEquip = BugCharacter;
+		USkeletalMeshComponent* CharacterMesh = CachedOwningBugCharacterForEquip->GetMesh();
+        
+		if (CharacterMesh)
+		{
+			FAttachmentTransformRules AttachmentRules(
+				EAttachmentRule::SnapToTarget, // Location
+				EAttachmentRule::SnapToTarget, // Rotation
+				EAttachmentRule::SnapToTarget, // Scale
+				false                          // bWeldSimulatedBodies
+			);
+			this->AttachToComponent(CharacterMesh, AttachmentRules, SocketName);
+		}
+		CachedOwningBugCharacterForEquip->OnWeaponChanged.Broadcast(this);
+	}
+}
+
 void AWeapon::OnWeaponStateSet()
 {
 	switch (WeaponState)
 	{
-	case EWeaponState::EWS_Equipped:
-		ShowPickupWidget(false);
+	case EWeaponState::EWS_EquippedPrimary:
+		if (GetEquipSound())
+		{
+			UGameplayStatics::PlaySoundAtLocation(
+				this,
+				GetEquipSound(),
+				GetActorLocation()
+			);
+		}
 		AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        
+		ShowPickupWidget(false);
 		WeaponMesh->SetSimulatePhysics(false);
 		WeaponMesh->SetEnableGravity(false);
 		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		if (ABugCharacter* BugCharacter = Cast<ABugCharacter>(GetOwner()))
-		{
-			CachedOwningBugCharacterForEquip = BugCharacter;
-			const USkeletalMeshSocket* HandSocket = CachedOwningBugCharacterForEquip->GetMesh()->GetSocketByName(FName("RightHandSocket"));
-			if (HandSocket)
-			{
-				HandSocket->AttachActor(this, CachedOwningBugCharacterForEquip->GetMesh());
-			}
-		
-			CachedOwningBugCharacterForEquip->OnWeaponChanged.Broadcast(this);
-		}
+		AttachToCharacter(TEXT("RightHandSocket"));
 		if (WeaponType == EWeaponType::EWT_SubmachineGun)
 		{
 			WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 			WeaponMesh->SetEnableGravity(true);
 			WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 		}
-		
 		break;
-
+	case EWeaponState::EWS_EquippedSecondary:
+		if (GetEquipSound())
+		{
+			UGameplayStatics::PlaySoundAtLocation(
+				this,
+				GetEquipSound(),
+				GetActorLocation()
+			);
+		}
+		AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ShowPickupWidget(false);
+		WeaponMesh->SetSimulatePhysics(false);
+		WeaponMesh->SetEnableGravity(false);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WeaponMesh->PutRigidBodyToSleep();
+		AttachToCharacter(TEXT("BackpackSocket"));
+		if (WeaponType == EWeaponType::EWT_SubmachineGun)
+		{
+			WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			WeaponMesh->SetEnableGravity(true);
+			WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+		}
+		break;
 	case EWeaponState::EWS_Dropped:
-
 		AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 		AreaSphere->SetGenerateOverlapEvents(true);
 		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -224,7 +267,6 @@ void AWeapon::ShowPickupWidget(bool bShowWidget, ABugCharacter* BugCharacter)
 				PickupWidget->SetWorldRotation(LookAtRot);
 			}
 		}
-		
 		PickupWidget->SetVisibility(bShowWidget);
 	}
 }
@@ -261,7 +303,6 @@ void AWeapon::DropWeapon(const FVector& Direction)
 	FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, true);
 	WeaponMesh->DetachFromComponent(DetachRules);
 	
-	// 清除所有缓存的角色引用，确保武器可以被再次捡起
 	if (CachedOwningBugCharacterForEquip)
 	{
 		CachedOwningBugCharacterForEquip->OnWeaponChanged.Broadcast(nullptr);

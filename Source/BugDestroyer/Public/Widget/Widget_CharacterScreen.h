@@ -33,6 +33,10 @@ protected:
 	void BP_OnHealthUpdated(float NewHealth, float MaxHealth);
 	UFUNCTION()
 	void OnHealthChangedCallback(float NewHealth, float MaxHealth);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_OnShieldUpdated(float NewShield, float MaxShield);
+	UFUNCTION()
+	void OnShieldChangedCallback(float NewShield, float MaxShield);
 	UFUNCTION()
 	void OnScoreChangedCallback(float InNewScore);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
@@ -57,6 +61,16 @@ protected:
 	void OnMatchTimeChangedCallback(int32 InNewMinutes, int32 InNewSeconds);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnMatchTimeUpdated(int32 InNewMinutes, int32 InNewSeconds);
+	UFUNCTION()
+	void OnGrenadeAmountChangedCallback(int32 InCurrentGrenadeAmount);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_OnGrenadeAmountUpdated(int32 InCurrentGrenadeAmount);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_SetGrenadeHUDVisibility(bool bIsVisible);
+	UFUNCTION()
+	void OnNetWarningCallback(bool bIsVisible);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_SetNetWarningHUDVisibility(bool bIsVisible);
 	void OnGameStateSet(AGameStateBase* GameStateBase);
 	void SetupGameStateBindings(ACommonGameState* GS);
 	

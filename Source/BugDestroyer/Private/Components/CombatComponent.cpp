@@ -3,14 +3,16 @@
 
 #include "Components/CombatComponent.h"
 
-#include "DebugHelper.h"
 #include "Camera/CameraComponent.h"
 #include "Character/BugCharacter.h"
+#include "Components/SphereComponent.h"
 #include "Controllers/GameCommonPlayerController.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HUD/BugHud.h"
+#include "Weapons/Projectiles/ProjectileGrenade.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "Weapons/HitScanWeapon.h"
 #include "Weapons/Weapon.h"
 
 #define TRACE_LENGTH 80000.f
@@ -25,12 +27,13 @@ UCombatComponent::UCombatComponent()
 void UCombatComponent::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
+	DOREPLIFETIME(UCombatComponent, PrimaryWeapon);
 	DOREPLIFETIME_CONDITION(UCombatComponent, bAiming, COND_SkipOwner);
 	DOREPLIFETIME(UCombatComponent, HitTarget);
 	DOREPLIFETIME(UCombatComponent, AmmoLeft);
 	DOREPLIFETIME(UCombatComponent, CombatState);
-	
+	DOREPLIFETIME(UCombatComponent, GrenadeAmount);
+	DOREPLIFETIME(UCombatComponent, SecondaryWeapon);
 }
 
 void UCombatComponent::BeginPlay()
@@ -50,7 +53,7 @@ void UCombatComponent::BeginPlay()
 
 void UCombatComponent::PushCrosshair(float DeltaTime)
 {
-	if (!EquippedWeapon)
+	if (!PrimaryWeapon)
 	{
 		if (BugHud) BugHud->SetbDrawCrosshair(false);
 		return;
@@ -75,10 +78,10 @@ void UCombatComponent::PushCrosshair(float DeltaTime)
 			);
 			if (PlayerController->IsLocalPlayerController())
 			{
-                float TargetSpread = (bFiring ? EquippedWeapon->GetFireCrosshairSpread() : 0.0f) 
-                	+ (bAiming ? EquippedWeapon->GetAimCrosshairSpread() : 0.0f) + VelocitySpread;
+                float TargetSpread = (bFiring ? PrimaryWeapon->GetFireCrosshairSpread() : 0.0f) 
+                	+ (bAiming ? PrimaryWeapon->GetAimCrosshairSpread() : 0.0f) + VelocitySpread;
                 BugHud->SetCrosshairCurrentSpread(FMath::FInterpTo(BugHud->GetCrosshairCurrentSpread(), TargetSpread, DeltaTime, 10.f));
-                BugHud->SetbDrawCrosshair(EquippedWeapon != nullptr);
+                BugHud->SetbDrawCrosshair(PrimaryWeapon != nullptr);
 			}
 
 		}
@@ -107,12 +110,33 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 void UCombatComponent::SetAiming(bool bIsAiming)
 {
 	bAiming = bIsAiming;
+	if (AHitScanWeapon* HitScanWeapon =Cast<AHitScanWeapon>(PrimaryWeapon))
+	{
+		HitScanWeapon->SetFireSphereRadius(FMath::Max(0, HitScanWeapon->GetDefaultFireSphereRadius() - (bIsAiming? 20.f : 0.f)));
+	}
+	if (BugCharacter && BugCharacter->GetController() && BugCharacter->IsLocallyControlled() && PrimaryWeapon->GetWeaponType() == EWeaponType::EWT_SniperRifle)
+	{
+		if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(BugCharacter->GetController()))
+		{
+			PC->ShowSniperScopeWidget(bIsAiming);
+		}
+	}
 	RPC_ServerSetAiming(bIsAiming);
 }
 
-void UCombatComponent::OnRep_EquippedWeapon()
+void UCombatComponent::OnRep_PrimaryWeapon()
 {
-	if (EquippedWeapon && BugCharacter)
+	if (PrimaryWeapon && BugCharacter)
+	{
+		BugCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
+		BugCharacter->bUseControllerRotationYaw = true;
+		BugCharacter->PlayEquipMontage();
+	}
+}
+
+void UCombatComponent::OnRep_SecondaryWeapon()
+{
+	if (PrimaryWeapon && BugCharacter)
 	{
 		BugCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
 		BugCharacter->bUseControllerRotationYaw = true;
@@ -135,6 +159,67 @@ void UCombatComponent::ExecuteFire(bool InIsFire)
 
 }
 
+void UCombatComponent::TossGrenade()
+{
+	if (GrenadeAmount <= 0)
+	{
+		return;
+	}
+	if (PrimaryWeapon)
+	{
+		RPC_TossGrenade();
+	}
+
+}
+
+void UCombatComponent::LaunchGrenade()
+{
+	ShowAttachedGrenade(false);
+	if (BugCharacter && BugCharacter->HasAuthority() && BugCharacter->GetAttachedGrenade())
+	{
+		if (GrenadeClass)
+		{
+			const FVector StartingLocation = BugCharacter->GetAttachedGrenade()->GetComponentLocation();
+			FVector ToTarget = HitTarget - StartingLocation;
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = BugCharacter;
+			SpawnParams.Instigator = BugCharacter;
+			UWorld* World = GetWorld();
+			if (World)
+			{
+				World->SpawnActor<AProjectileGrenade>(
+					GrenadeClass, 
+					StartingLocation, 
+					ToTarget.Rotation(),
+					SpawnParams
+					);
+			}
+		}
+		if (GrenadeAmount > 0)
+		{
+			GrenadeAmount --;
+			BugCharacter->OnGrenadeAmountChanged.Broadcast(GrenadeAmount);
+		}
+	}
+}
+
+void UCombatComponent::ShowAttachedGrenade(bool bShowGrenade)
+{
+	if (BugCharacter && BugCharacter->GetAttachedGrenade())
+	{
+		BugCharacter->GetAttachedGrenade()->SetVisibility(bShowGrenade);
+	}
+}
+
+void UCombatComponent::RPC_TossGrenade_Implementation()
+{
+	CombatState = ECombatState::ECS_TossingGrenade;
+	if (BugCharacter)
+	{
+		BugCharacter->PlayGrenadeTossMontage();
+	}
+	ShowAttachedGrenade(true);
+}
 
 
 void UCombatComponent::Fire()
@@ -148,13 +233,13 @@ void UCombatComponent::Fire()
 
 void UCombatComponent::StartFireTimer()
 {
-	if (!EquippedWeapon) return;
+	if (!PrimaryWeapon) return;
 	bFiring = true;
 	BugCharacter->GetWorldTimerManager().SetTimer(
 			FireTimerHandle,
 			this,
 			&UCombatComponent::FireTimerFinished,
-			EquippedWeapon->GetFireDelay()
+			PrimaryWeapon->GetFireDelay()
 		);
 
 }
@@ -163,7 +248,7 @@ void UCombatComponent::FireTimerFinished()
 {
 	bFiring = false;
 	bCanFire = true;
-	if (EquippedWeapon && EquippedWeapon->IsAutomatic() && CanFire())
+	if (PrimaryWeapon && PrimaryWeapon->IsAutomatic() && CanFire())
 	{
 		Fire();
 	}
@@ -236,15 +321,15 @@ void UCombatComponent::TraceUnderCrosshairs(FHitResult& HitResult)
 
 void UCombatComponent::InterpFOV(float DeltaTime)
 {
-	if (!EquippedWeapon) return;
+	if (!PrimaryWeapon) return;
 
 	if (bAiming)
 	{
-		CurrentFOV = FMath::FInterpTo(CurrentFOV, EquippedWeapon->GetZoomedFOV(), DeltaTime, EquippedWeapon->GetZoomedInterpSpeed());
+		CurrentFOV = FMath::FInterpTo(CurrentFOV, PrimaryWeapon->GetZoomedFOV(), DeltaTime, PrimaryWeapon->GetZoomedInterpSpeed());
 	}
 	else
 	{
-		CurrentFOV = FMath::FInterpTo(CurrentFOV, DefaultFOV, DeltaTime, EquippedWeapon->GetZoomedInterpSpeed());
+		CurrentFOV = FMath::FInterpTo(CurrentFOV, DefaultFOV, DeltaTime, PrimaryWeapon->GetZoomedInterpSpeed());
 	}
 	if (BugCharacter && BugCharacter->GetFollowCamera())
 	{
@@ -273,7 +358,11 @@ void UCombatComponent::InitializeHUD()
 
 void UCombatComponent::OnRep_AmmoLeft()
 {
-	BugCharacter->OnAmmoLeftChanged.Broadcast(EquippedWeapon->GetCurrentAmmo(), EquippedWeapon->GetMagCapacity(), AmmoLeft);
+	if (BugCharacter)
+	{
+		BugCharacter->OnAmmoLeftChanged.Broadcast(PrimaryWeapon->GetCurrentAmmo(), PrimaryWeapon->GetMagCapacity(), AmmoLeft);
+	}
+	
 }
 
 void UCombatComponent::InitializeCarriedAmmoMap()
@@ -285,15 +374,24 @@ void UCombatComponent::InitializeCarriedAmmoMap()
 		CarriedAmmoMap.Emplace(EWeaponType::EWT_RocketLauncher, 4);
 		CarriedAmmoMap.Emplace(EWeaponType::EWT_SubmachineGun, 80);
 		CarriedAmmoMap.Emplace(EWeaponType::EWT_Shotgun, 24);
+		CarriedAmmoMap.Emplace(EWeaponType::EWT_SniperRifle, 10);
 	}
 
+}
+
+void UCombatComponent::OnRep_GrenadeAmount()
+{
+	if (BugCharacter)
+	{
+		BugCharacter->OnGrenadeAmountChanged.Broadcast(GrenadeAmount);
+	}
 }
 
 bool UCombatComponent::CanFire()
 {
 	if (!bFireButtonPressed) return false;
-	if (!EquippedWeapon) return false;
-	if (EquippedWeapon->IsAmmoEmpty()) return false;
+	if (!PrimaryWeapon) return false;
+	if (PrimaryWeapon->IsAmmoEmpty()) return false;
 	if (!bCanFire) return false;
 	if (!BugCharacter || !BugCharacter->IsUnoccupied()) return false;
 	return true;
@@ -306,10 +404,10 @@ void UCombatComponent::RPC_ServerStartFire_Implementation(const FVector_NetQuant
 
 void UCombatComponent::MulticastRPC_StartFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
 {
-	if (!EquippedWeapon) return;
+	if (!PrimaryWeapon) return;
 	if (BugCharacter)
 	{
-		EquippedWeapon->Fire(TraceHitTarget);
+		PrimaryWeapon->Fire(TraceHitTarget);
 		BugCharacter->PlayFireMontage();
 	}
 }
@@ -326,35 +424,104 @@ void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 	{
 		return;
 	}
-	if (EquippedWeapon)
+	if (PrimaryWeapon != nullptr && SecondaryWeapon == nullptr)
 	{
-		EquippedWeapon->DropWeapon();
+		EquipSecondaryWeapon(WeaponToEquip);
 	}
-	EquippedWeapon = WeaponToEquip;
-	EquippedWeapon->SetOwner(BugCharacter);
-	if (EquippedWeapon)
+	else
 	{
-		if (CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
-		{
-			AmmoLeft = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
-			BugCharacter->OnAmmoLeftChanged.Broadcast(EquippedWeapon->GetCurrentAmmo(), EquippedWeapon->GetMagCapacity(), AmmoLeft);
-		}
+		EquipPrimaryWeapon(WeaponToEquip);
 	}
-	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
-	BugCharacter->PlayEquipMontage();
-	BugCharacter->SetCombatState(ECombatState::ECS_Equipping);
-	if (EquippedWeapon->GetEquipSound())
-	{
-		UGameplayStatics::PlaySoundAtLocation(
-			this,
-			EquippedWeapon->GetEquipSound(),
-			BugCharacter->GetActorLocation()
-		);
-	}
+	
 	BugCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
 	BugCharacter->bUseControllerRotationYaw = true;
 	
 	
+}
+
+void UCombatComponent::EquipPrimaryWeapon(AWeapon* WeaponToEquip)
+{
+	if (PrimaryWeapon != nullptr)
+	{
+		PrimaryWeapon->DropWeapon();
+	}
+	WeaponToEquip->GetAreaSphere()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponToEquip->GetWeaponMesh()->SetSimulatePhysics(false);
+	WeaponToEquip->GetWeaponMesh()->SetEnableGravity(false);
+	WeaponToEquip->GetWeaponMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PrimaryWeapon = WeaponToEquip;
+	PrimaryWeapon->SetOwner(BugCharacter);
+	if (PrimaryWeapon)
+	{
+		if (CarriedAmmoMap.Contains(PrimaryWeapon->GetWeaponType()))
+		{
+			AmmoLeft = CarriedAmmoMap[PrimaryWeapon->GetWeaponType()];
+			BugCharacter->OnAmmoLeftChanged.Broadcast(PrimaryWeapon->GetCurrentAmmo(), PrimaryWeapon->GetMagCapacity(), AmmoLeft);
+		}
+		
+	}
+	PrimaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedPrimary);
+	BugCharacter->PlayEquipMontage();
+	BugCharacter->SetCombatState(ECombatState::ECS_Equipping);
+}
+
+void UCombatComponent::EquipSecondaryWeapon(AWeapon* WeaponToEquip)
+{
+	if (SecondaryWeapon != nullptr)
+	{
+		SecondaryWeapon->DropWeapon();
+	}
+	
+	SecondaryWeapon = WeaponToEquip;
+	SecondaryWeapon->SetOwner(BugCharacter);
+	if (CarriedAmmoMap.Contains(SecondaryWeapon->GetWeaponType()))
+	{
+		AmmoLeft = CarriedAmmoMap[SecondaryWeapon->GetWeaponType()];
+		BugCharacter->OnAmmoLeftChanged.Broadcast(
+		   SecondaryWeapon->GetCurrentAmmo(), 
+		   SecondaryWeapon->GetMagCapacity(), 
+		   AmmoLeft
+		);
+	}
+	SecondaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedSecondary); 
+	BugCharacter->PlayEquipMontage();
+	BugCharacter->SetCombatState(ECombatState::ECS_Equipping);
+
+	if (SecondaryWeapon->GetEquipSound())
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+		   this,
+		   SecondaryWeapon->GetEquipSound(),
+		   BugCharacter->GetActorLocation()
+		);
+	}
+}
+
+void UCombatComponent::SwapWeapons()
+{
+	BugCharacter->PlayEquipMontage();
+	RPC_SwapWeapons();
+}
+
+void UCombatComponent::RPC_SwapWeapons_Implementation()
+{
+	if (PrimaryWeapon == nullptr || SecondaryWeapon == nullptr) return;
+	AWeapon* TempWeapon = PrimaryWeapon;
+	PrimaryWeapon = SecondaryWeapon;
+	SecondaryWeapon = TempWeapon;
+	if (PrimaryWeapon)
+	{
+		PrimaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedPrimary);
+	}
+	if (SecondaryWeapon)
+	{
+		SecondaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedSecondary);
+	}
+	if (BugCharacter)
+	{
+		BugCharacter->OnWeaponChanged.Broadcast(PrimaryWeapon);
+	}
+	CombatState = ECombatState::ECS_Equipping;
 }
 
 void UCombatComponent::OnRep_CombatState()
@@ -371,27 +538,19 @@ void UCombatComponent::OnCombatStateChanged()
 		if (BugCharacter)
 		{
 			BugCharacter->PlayReloadMontage();
-			if (EquippedWeapon->GetReloadSound())
+			if (PrimaryWeapon->GetReloadSound())
 			{
 				UGameplayStatics::PlaySoundAtLocation(
 					this,
-					EquippedWeapon->GetReloadSound(),
+					PrimaryWeapon->GetReloadSound(),
 					BugCharacter->GetActorLocation()
 				);
 			}
-			EquippedWeapon->PlayReloadAnimation();
+			PrimaryWeapon->PlayReloadAnimation();
 		}
 	
 		break;
 	case ECombatState::ECS_Equipping:
-		if (EquippedWeapon->GetEquipSound())
-		{
-			UGameplayStatics::PlaySoundAtLocation(
-				this,
-				EquippedWeapon->GetEquipSound(),
-				BugCharacter->GetActorLocation()
-			);
-		}
 		break;
 	case ECombatState::ECS_Max:
 		break;
@@ -401,12 +560,18 @@ void UCombatComponent::OnCombatStateChanged()
 			ExecuteFire(true);
 		}
 		break;
+	case ECombatState::ECS_TossingGrenade:
+		if (BugCharacter)
+		{
+			BugCharacter->PlayGrenadeTossMontage();
+		}
+		break;
 	}
 }
 
 void UCombatComponent::Reload()
 {
-	if (EquippedWeapon && EquippedWeapon->GetCurrentAmmo() != EquippedWeapon->GetMagCapacity() && AmmoLeft > 0 && CombatState == ECombatState::ECS_Unoccupied)
+	if (PrimaryWeapon && PrimaryWeapon->GetCurrentAmmo() != PrimaryWeapon->GetMagCapacity() && AmmoLeft > 0 && CombatState == ECombatState::ECS_Unoccupied)
 	{
 		RPC_Reload();
 	}
@@ -414,21 +579,21 @@ void UCombatComponent::Reload()
 
 void UCombatComponent::RPC_Reload_Implementation()
 {
-	if (EquippedWeapon && EquippedWeapon->GetCurrentAmmo() != EquippedWeapon->GetMagCapacity() && AmmoLeft > 0 && CombatState == ECombatState::ECS_Unoccupied)
+	if (PrimaryWeapon && PrimaryWeapon->GetCurrentAmmo() != PrimaryWeapon->GetMagCapacity() && AmmoLeft > 0 && CombatState == ECombatState::ECS_Unoccupied)
 	{
 		CombatState = ECombatState::ECS_Reloading;
 		if (BugCharacter)
 		{
 			BugCharacter->PlayReloadMontage();
-			if (EquippedWeapon->GetReloadSound())
+			if (PrimaryWeapon->GetReloadSound())
 			{
 				UGameplayStatics::PlaySoundAtLocation(
 					this,
-					EquippedWeapon->GetReloadSound(),
+					PrimaryWeapon->GetReloadSound(),
 					BugCharacter->GetActorLocation()
 				);
 			}
-			EquippedWeapon->PlayReloadAnimation();
+			PrimaryWeapon->PlayReloadAnimation();
 		}
 	}
 }
@@ -441,7 +606,7 @@ void UCombatComponent::OnReloadAnimationFinished()
 	{
 		if (BugCharacter->HasAuthority())
 		{
-			if (EquippedWeapon)
+			if (PrimaryWeapon)
 			{
 				CombatState = ECombatState::ECS_Unoccupied;
 				OnCombatStateChanged();
@@ -471,6 +636,27 @@ void UCombatComponent::OnEquipAnimationFinished()
 	}
 }
 
+void UCombatComponent::OnTossGrenadeAnimationFinished()
+{
+	if (BugCharacter)
+	{
+		if (BugCharacter->HasAuthority())
+		{
+			CombatState = ECombatState::ECS_Unoccupied;
+			OnCombatStateChanged();
+		}
+		else
+		{
+			RPC_TossGrenadeCompleted();
+		}
+	}
+}
+
+void UCombatComponent::RPC_TossGrenadeCompleted_Implementation()
+{
+	CombatState = ECombatState::ECS_Unoccupied;
+}
+
 void UCombatComponent::RPC_EquipCompleted_Implementation()
 {
 	CombatState = ECombatState::ECS_Unoccupied;
@@ -478,7 +664,7 @@ void UCombatComponent::RPC_EquipCompleted_Implementation()
 
 void UCombatComponent::RPC_ReloadAnimationFinished_Implementation()
 {
-	if (EquippedWeapon)
+	if (PrimaryWeapon)
 	{
 		CombatState = ECombatState::ECS_Unoccupied;
 		HandleReloadAmmo();
@@ -489,25 +675,42 @@ void UCombatComponent::HandleReloadAmmo()
 {
 	if (BugCharacter)
 	{
-		if (BugCharacter->HasAuthority() && EquippedWeapon)
+		if (BugCharacter->HasAuthority() && PrimaryWeapon)
 		{
-			int32 MagCapacity = EquippedWeapon->GetMagCapacity();
-			int32 CurrentAmmo = EquippedWeapon->GetCurrentAmmo();
+			int32 MagCapacity = PrimaryWeapon->GetMagCapacity();
+			int32 CurrentAmmo = PrimaryWeapon->GetCurrentAmmo();
 			int32 NeedToFill = MagCapacity - CurrentAmmo;
 			if (NeedToFill <= 0) return;
 			if (AmmoLeft >= NeedToFill)
 			{
-				EquippedWeapon->SetCurrentAmmo(MagCapacity);
+				PrimaryWeapon->SetCurrentAmmo(MagCapacity);
 				AmmoLeft -= NeedToFill;
 			}
 			else
 			{
-				EquippedWeapon->SetCurrentAmmo(CurrentAmmo + AmmoLeft);
+				PrimaryWeapon->SetCurrentAmmo(CurrentAmmo + AmmoLeft);
 				AmmoLeft = 0;
 			}
-			CarriedAmmoMap.Add(EquippedWeapon->GetWeaponType(), AmmoLeft);
-			EquippedWeapon->OnAmmoChanged.Broadcast(EquippedWeapon->GetCurrentAmmo(), EquippedWeapon->GetMagCapacity(), AmmoLeft);
-			BugCharacter->OnAmmoLeftChanged.Broadcast(EquippedWeapon->GetCurrentAmmo(), EquippedWeapon->GetMagCapacity(), AmmoLeft);
+			CarriedAmmoMap.Add(PrimaryWeapon->GetWeaponType(), AmmoLeft);
+			PrimaryWeapon->OnAmmoChanged.Broadcast(PrimaryWeapon->GetCurrentAmmo(), PrimaryWeapon->GetMagCapacity(), AmmoLeft);
+			BugCharacter->OnAmmoLeftChanged.Broadcast(PrimaryWeapon->GetCurrentAmmo(), PrimaryWeapon->GetMagCapacity(), AmmoLeft);
+		}
+	}
+}
+
+void UCombatComponent::PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount)
+{
+	if (CarriedAmmoMap.Contains(WeaponType))
+	{
+		CarriedAmmoMap[WeaponType] += AmmoAmount;
+		if (PrimaryWeapon)
+		{
+			AmmoLeft = CarriedAmmoMap[PrimaryWeapon->GetWeaponType()];
+			PrimaryWeapon->OnAmmoChanged.Broadcast(PrimaryWeapon->GetCurrentAmmo(), PrimaryWeapon->GetMagCapacity(), AmmoLeft);
+			if (PrimaryWeapon->GetWeaponType() == WeaponType && PrimaryWeapon->IsAmmoEmpty())
+			{
+				Reload();
+			}
 		}
 	}
 }

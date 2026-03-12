@@ -1,4 +1,4 @@
-﻿// Copyright @FpsLuping all reserved
+// Copyright @FpsLuping all reserved
 
 #pragma once
 
@@ -22,6 +22,8 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_ShowMatchCooldown(const FText& WinnerNames);
 	
+	void ShowSniperScopeWidget(bool bIsShow);
+	
 protected:
 
 	virtual void OnPossess(APawn* aPawn) override;
@@ -43,6 +45,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	FName MatchState;
 	bool bCharacterScreenPushed = false;
-
+	UPROPERTY()
+	UWidget_ActivatableBase* CachedSniperScopeWidget;
+	
 	
 };

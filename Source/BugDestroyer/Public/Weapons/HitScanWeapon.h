@@ -45,12 +45,16 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
 	float DistanceToSphere = 800.f;
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	float SphereRadius = 75.f;
+	float FireSphereRadius = 75.f;
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float DefaultFireSphereRadius = 75.f;
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
 	bool bUseScatter = false;
 	
 public:
 	FORCEINLINE float GetImpactDamageFromTag(FGameplayTag Tag) const { return TaggedImpactEffects.Contains(Tag) ? TaggedImpactEffects[Tag].ImpactDamage : 0.f; }
-	
+	FORCEINLINE void SetFireSphereRadius(const float InRadius) { FireSphereRadius = InRadius; }
+	FORCEINLINE float GetFireSphereRadius() const{ return FireSphereRadius; }
+	FORCEINLINE float GetDefaultFireSphereRadius() const{ return DefaultFireSphereRadius; }
 	
 };

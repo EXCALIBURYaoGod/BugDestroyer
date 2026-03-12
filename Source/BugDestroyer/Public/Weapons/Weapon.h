@@ -17,7 +17,8 @@ UENUM(BlueprintType)
 enum class EWeaponState : uint8
 {
 	EWS_Initial UMETA(DisplayName = "Initial State"),
-	EWS_Equipped UMETA(DisplayName = "Equipped"),
+	EWS_EquippedPrimary UMETA(DisplayName = "EquippedPrimary"),
+	EWS_EquippedSecondary UMETA(DisplayName = "EquippedSecondary"),
 	EWS_Dropped UMETA(DisplayName = "Dropped"),
 	
 	EWS_MAX UMETA(DisplayName = "DefaultMax"),
@@ -31,6 +32,7 @@ enum class EWeaponType : uint8
 	EWT_PlasmaPistol UMETA(DisplayName = "Plasma Pistol"),
 	EWT_SubmachineGun UMETA(DisplayName = "Submachine Gun"),
 	EWT_Shotgun UMETA(DisplayName = "Shotgun"),
+	EWT_SniperRifle UMETA(DisplayName = "SniperRifle"),
 	
 	EWT_Max UMETA(DisplayName = "DefaultMax")
 };
@@ -61,6 +63,8 @@ public:
 	
 protected:
 	virtual void BeginPlay() override;
+	virtual void OnWeaponStateSet();
+	
 	UPROPERTY()
 	ABugCharacter* CachedOwningBugCharacterForEquip;
 	
@@ -126,7 +130,7 @@ private:
 	void OnRep_WeaponState();
 	UFUNCTION()
 	void OnRep_CurrentAmmo();
-	void OnWeaponStateSet();
+	void AttachToCharacter(const FName& SocketName);
 	void SpendRoundAmmo();
 	void CreateMIDs();
 	
