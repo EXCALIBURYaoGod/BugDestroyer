@@ -5,7 +5,7 @@
 
 #include "BugGameplayTags.h"
 #include "BugUIFunctionLibrary.h"
-#include "DebugHelper.h"
+
 #include "Blueprint/UserWidget.h"
 #include "Character/BugCharacter.h"
 #include "GameFramework/GameMode.h"
@@ -15,6 +15,9 @@
 #include "Widget/Widget_MatchCooldownScreen.h"
 #include "Widget/Widget_PrimaryLayout.h"
 
+AGameCommonPlayerController::AGameCommonPlayerController()
+{
+}
 
 void AGameCommonPlayerController::ClientSetMatchState_Implementation(FName NewState)
 {
@@ -59,6 +62,8 @@ void AGameCommonPlayerController::Client_ShowMatchCooldown_Implementation(const 
 		}
 	});
 }
+
+
 
 void AGameCommonPlayerController::ShowSniperScopeWidget(bool bIsShow)
 {

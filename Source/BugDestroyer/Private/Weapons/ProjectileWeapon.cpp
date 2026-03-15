@@ -20,45 +20,67 @@ void AProjectileWeapon::BeginPlay()
 	
 }
 
-// Called every frame
 void AProjectileWeapon::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }
 
-void AProjectileWeapon::Fire(const FVector& HitTarget)
+void AProjectileWeapon::ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSeed)
 {
-	Super::Fire(HitTarget);
-	
-	// SpawnProjectile OnlyServerDo
-	if (HasAuthority())
+	Super::ServerExecuteFireLogic(HitTarget, InRandomSeed);
+	APawn* InstigatorPawn = Cast<APawn>(GetOwner());
+	const USkeletalMeshSocket* MuzzleSocket = GetWeaponMesh()->GetSocketByName(FName("Muzzle"));
+    
+	if (MuzzleSocket && ProjectileClass)
 	{
-		APawn* InstigatorPawn = Cast<APawn>(GetOwner());
-		const USkeletalMeshSocket* MuzzleSocket = GetWeaponMesh()->GetSocketByName(FName("Muzzle"));
-		if (MuzzleSocket)
+		FTransform MuzzleTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
+		FVector ToTarget = HitTarget - MuzzleTransform.GetLocation();
+		FRotator TargetRot = ToTarget.Rotation();
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = GetOwner();
+		SpawnParams.Instigator = InstigatorPawn;
+        
+		// 纯逻辑：服务端生成物理抛射体。
+		GetWorld()->SpawnActor<AProjectile>(
+			ProjectileClass,
+			MuzzleTransform.GetLocation(),
+			TargetRot,
+			SpawnParams
+		);
+	}
+}
+
+void AProjectileWeapon::SpawnFakeProjectile(const FVector& HitTarget)
+{
+	if (HasAuthority()) return;
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (OwnerPawn && !OwnerPawn->IsLocallyControlled())
+	{
+		return;
+	}
+	const USkeletalMeshSocket* MuzzleSocket = GetWeaponMesh()->GetSocketByName(FName("Muzzle"));
+	APawn* InstigatorPawn = Cast<APawn>(GetOwner());
+	if (MuzzleSocket)
+	{
+		FTransform MuzzleTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
+		FVector ToTarget = HitTarget - MuzzleTransform.GetLocation();
+		FRotator TargetRot = ToTarget.Rotation();
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = GetOwner();
+		SpawnParams.Instigator = InstigatorPawn;
+		if (FakeProjectileClass)
 		{
-			FTransform MuzzleTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
-			FVector ToTarget = HitTarget - MuzzleTransform.GetLocation();
-			FRotator TargetRot = ToTarget.Rotation();
-			if (ProjectileClass)
-			{
-				FActorSpawnParameters SpawnParams;
-				SpawnParams.Owner = GetOwner();
-				SpawnParams.Instigator = InstigatorPawn;
-				UWorld* World = GetWorld();
-				if (World)
-				{
-					World->SpawnActor<AProjectile>(
-							ProjectileClass,
-							MuzzleTransform.GetLocation(),
-							TargetRot,
-							SpawnParams
-						);
-				}
-			}
+			 GetWorld()->SpawnActor<AProjectile>(FakeProjectileClass, MuzzleTransform.GetLocation(), TargetRot);
 		}
 	}
-	// SpawnProjectile OnlyServerDo
+}
+
+void AProjectileWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed)
+{
+	Super::SimulateFireFX(HitTarget, InRandomSeed);
+	SpawnFakeProjectile(HitTarget);
 	
 }
+
+
 

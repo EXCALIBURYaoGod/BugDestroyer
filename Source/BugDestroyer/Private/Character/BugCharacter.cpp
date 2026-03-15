@@ -97,22 +97,25 @@ void ABugCharacter::BeginPlay()
 void ABugCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	
+	// Update net estimated aim yaw on server for client prediction
 	if (HasAuthority())
 	{
-		// 获取当前的偏航角，并规范化到 -180~180
 		NetEstimatedAimYaw = FRotator::NormalizeAxis(GetBaseAimRotation().Yaw);
 	}
 	
+	// Hide mesh if camera is too close
 	HideIfCameraClose(DeltaTime);
-
-	if (CombatComponent)
-	{
-		const UEnum* EnumPtr = StaticEnum<ECombatState>();
-		FString StateString = EnumPtr ? EnumPtr->GetNameStringByValue((int64)CombatComponent->CombatState) : TEXT("Invalid");
-		FString RolePrefix = CombatComponent->GetOwner()->HasAuthority() ? TEXT("[Server]") : TEXT("[Client]");
-		FString FinalMessage = FString::Printf(TEXT("%s CombatState: %s"), *RolePrefix, *StateString);
-
-	}
+	
+	// Debug code - can be removed in final build
+	// if (CombatComponent)
+	// {
+	//     const UEnum* EnumPtr = StaticEnum<ECombatState>();
+	//     FString StateString = EnumPtr ? EnumPtr->GetNameStringByValue((int64)CombatComponent->CombatState) : TEXT("Invalid");
+	//     FString RolePrefix = CombatComponent->GetOwner()->HasAuthority() ? TEXT("[Server]") : TEXT("[Client]");
+	//     FString FinalMessage = FString::Printf(TEXT("%s CombatState: %s"), *RolePrefix, *StateString);
+	//     UE_LOG(LogTemp, Warning, TEXT("%s"), *FinalMessage);
+	// }
 
 }
 

@@ -99,9 +99,8 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	{
 		PushCrosshair(DeltaTime);
 		FHitResult HitResult;
-        TraceUnderCrosshairs(HitResult);
-        RPC_SetHitTarget(HitResult.ImpactPoint);
-		
+		TraceUnderCrosshairs(HitResult);
+		RPC_SetHitTarget(HitResult.ImpactPoint);
 		InterpFOV(DeltaTime);
 	}
 
@@ -110,17 +109,23 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 void UCombatComponent::SetAiming(bool bIsAiming)
 {
 	bAiming = bIsAiming;
-	if (AHitScanWeapon* HitScanWeapon =Cast<AHitScanWeapon>(PrimaryWeapon))
+	
+	// Adjust fire sphere radius for hit scan weapons when aiming
+	if (AHitScanWeapon* HitScanWeapon = Cast<AHitScanWeapon>(PrimaryWeapon))
 	{
-		HitScanWeapon->SetFireSphereRadius(FMath::Max(0, HitScanWeapon->GetDefaultFireSphereRadius() - (bIsAiming? 20.f : 0.f)));
+		const float AdjustedRadius = FMath::Max(0.f, HitScanWeapon->GetDefaultFireSphereRadius() - (bIsAiming ? 20.f : 0.f));
+		HitScanWeapon->SetFireSphereRadius(AdjustedRadius);
 	}
-	if (BugCharacter && BugCharacter->GetController() && BugCharacter->IsLocallyControlled() && PrimaryWeapon->GetWeaponType() == EWeaponType::EWT_SniperRifle)
+	
+	if (BugCharacter && BugCharacter->IsLocallyControlled() && PrimaryWeapon && 
+		PrimaryWeapon->GetWeaponType() == EWeaponType::EWT_SniperRifle)
 	{
 		if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(BugCharacter->GetController()))
 		{
 			PC->ShowSniperScopeWidget(bIsAiming);
 		}
 	}
+	
 	RPC_ServerSetAiming(bIsAiming);
 }
 
@@ -136,27 +141,12 @@ void UCombatComponent::OnRep_PrimaryWeapon()
 
 void UCombatComponent::OnRep_SecondaryWeapon()
 {
-	if (PrimaryWeapon && BugCharacter)
+	if (SecondaryWeapon && BugCharacter)
 	{
 		BugCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
 		BugCharacter->bUseControllerRotationYaw = true;
 		BugCharacter->PlayEquipMontage();
 	}
-}
-
-void UCombatComponent::ExecuteFire(bool InIsFire)
-{
-	bFireButtonPressed = InIsFire;
-	if (CanFire())
-	{
-		bFiring = true;
-		Fire();
-	}
-	else
-	{
-		bFiring = false;
-	}
-
 }
 
 void UCombatComponent::TossGrenade()
@@ -175,6 +165,27 @@ void UCombatComponent::TossGrenade()
 void UCombatComponent::LaunchGrenade()
 {
 	ShowAttachedGrenade(false);
+	if (BugCharacter && BugCharacter->GetAttachedGrenade())
+	{
+		if (FakeGrenadeClass)
+		{
+			const FVector StartingLocation = BugCharacter->GetAttachedGrenade()->GetComponentLocation();
+			FVector ToTarget = HitTarget - StartingLocation;
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = BugCharacter;
+			SpawnParams.Instigator = BugCharacter;
+			UWorld* World = GetWorld();
+			if (World)
+			{
+				World->SpawnActor<AProjectileGrenade>(
+					FakeGrenadeClass, 
+					StartingLocation, 
+					ToTarget.Rotation(),
+					SpawnParams
+					);
+			}
+		}
+	}
 	if (BugCharacter && BugCharacter->HasAuthority() && BugCharacter->GetAttachedGrenade())
 	{
 		if (GrenadeClass)
@@ -219,39 +230,6 @@ void UCombatComponent::RPC_TossGrenade_Implementation()
 		BugCharacter->PlayGrenadeTossMontage();
 	}
 	ShowAttachedGrenade(true);
-}
-
-
-void UCombatComponent::Fire()
-{
-	bCanFire = false;
-	FHitResult HitResult;
-	TraceUnderCrosshairs(HitResult);
-	RPC_ServerStartFire(HitResult.ImpactPoint);
-	StartFireTimer();
-}
-
-void UCombatComponent::StartFireTimer()
-{
-	if (!PrimaryWeapon) return;
-	bFiring = true;
-	BugCharacter->GetWorldTimerManager().SetTimer(
-			FireTimerHandle,
-			this,
-			&UCombatComponent::FireTimerFinished,
-			PrimaryWeapon->GetFireDelay()
-		);
-
-}
-
-void UCombatComponent::FireTimerFinished()
-{
-	bFiring = false;
-	bCanFire = true;
-	if (PrimaryWeapon && PrimaryWeapon->IsAutomatic() && CanFire())
-	{
-		Fire();
-	}
 }
 
 void UCombatComponent::RPC_SetHitTarget_Implementation(const FVector_NetQuantize& ClientHitTarget)
@@ -386,6 +364,67 @@ void UCombatComponent::OnRep_GrenadeAmount()
 		BugCharacter->OnGrenadeAmountChanged.Broadcast(GrenadeAmount);
 	}
 }
+void UCombatComponent::ExecuteFire(bool InIsFire)
+{
+	bFireButtonPressed = InIsFire;
+	if (CanFire())
+	{
+		bFiring = true;
+		Fire();
+	}
+	else
+	{
+		bFiring = false;
+	}
+
+}
+
+void UCombatComponent::LocalPlayFireFX(const FVector& InHitTarget, int32 InRandomSeed)
+{
+	if (PrimaryWeapon && BugCharacter)
+	{
+		PrimaryWeapon->SimulateFireFX(InHitTarget, InRandomSeed); // 只播特效
+		BugCharacter->PlayFireMontage();
+	}
+}
+
+void UCombatComponent::Fire()
+{
+	bCanFire = false;
+	FHitResult HitResult;
+	TraceUnderCrosshairs(HitResult);
+	RandomSeed = FMath::Rand();
+	if (PrimaryWeapon)
+	{
+		PrimaryWeapon->ClientSpendRoundAmmo();
+	}
+	LocalPlayFireFX(HitResult.ImpactPoint, RandomSeed); 
+	RPC_ServerStartFire(HitResult.ImpactPoint, RandomSeed);
+	StartFireTimer();
+}
+
+void UCombatComponent::StartFireTimer()
+{
+	if (!PrimaryWeapon) return;
+	bFiring = true;
+	BugCharacter->GetWorldTimerManager().SetTimer(
+			FireTimerHandle,
+			this,
+			&UCombatComponent::FireTimerFinished,
+			PrimaryWeapon->GetFireDelay()
+		);
+
+}
+
+void UCombatComponent::FireTimerFinished()
+{
+	bFiring = false;
+	bCanFire = true;
+	if (PrimaryWeapon && PrimaryWeapon->IsAutomatic() && CanFire())
+	{
+		Fire();
+	}
+}
 
 bool UCombatComponent::CanFire()
 {
@@ -397,18 +436,23 @@ bool UCombatComponent::CanFire()
 	return true;
 }
 
-void UCombatComponent::RPC_ServerStartFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+void UCombatComponent::RPC_ServerStartFire_Implementation(const FVector_NetQuantize& TraceHitTarget, int32 InRandomSeed)
 {
-	MulticastRPC_StartFire(TraceHitTarget);
+	if (PrimaryWeapon)
+	{
+		PrimaryWeapon->ServerExecuteFireLogic(TraceHitTarget, InRandomSeed);
+	}
+    
+	// 广播给除发起者之外的其他客户端播特效
+	MulticastRPC_SimulateFireFX(TraceHitTarget, InRandomSeed);
 }
 
-void UCombatComponent::MulticastRPC_StartFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+void UCombatComponent::MulticastRPC_SimulateFireFX_Implementation(const FVector_NetQuantize& TraceHitTarget, int32 InRandomSeed)
 {
 	if (!PrimaryWeapon) return;
-	if (BugCharacter)
+	if (BugCharacter && !BugCharacter->IsLocallyControlled())
 	{
-		PrimaryWeapon->Fire(TraceHitTarget);
-		BugCharacter->PlayFireMontage();
+		LocalPlayFireFX(TraceHitTarget, InRandomSeed);
 	}
 }
 
@@ -432,7 +476,6 @@ void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 	{
 		EquipPrimaryWeapon(WeaponToEquip);
 	}
-	
 	BugCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
 	BugCharacter->bUseControllerRotationYaw = true;
 	
@@ -474,15 +517,6 @@ void UCombatComponent::EquipSecondaryWeapon(AWeapon* WeaponToEquip)
 	
 	SecondaryWeapon = WeaponToEquip;
 	SecondaryWeapon->SetOwner(BugCharacter);
-	if (CarriedAmmoMap.Contains(SecondaryWeapon->GetWeaponType()))
-	{
-		AmmoLeft = CarriedAmmoMap[SecondaryWeapon->GetWeaponType()];
-		BugCharacter->OnAmmoLeftChanged.Broadcast(
-		   SecondaryWeapon->GetCurrentAmmo(), 
-		   SecondaryWeapon->GetMagCapacity(), 
-		   AmmoLeft
-		);
-	}
 	SecondaryWeapon->SetWeaponState(EWeaponState::EWS_EquippedSecondary); 
 	BugCharacter->PlayEquipMontage();
 	BugCharacter->SetCombatState(ECombatState::ECS_Equipping);
@@ -499,8 +533,12 @@ void UCombatComponent::EquipSecondaryWeapon(AWeapon* WeaponToEquip)
 
 void UCombatComponent::SwapWeapons()
 {
-	BugCharacter->PlayEquipMontage();
-	RPC_SwapWeapons();
+	if (SecondaryWeapon)
+	{
+		BugCharacter->PlayEquipMontage();
+		RPC_SwapWeapons();
+	}
+	
 }
 
 void UCombatComponent::RPC_SwapWeapons_Implementation()
@@ -519,7 +557,11 @@ void UCombatComponent::RPC_SwapWeapons_Implementation()
 	}
 	if (BugCharacter)
 	{
-		BugCharacter->OnWeaponChanged.Broadcast(PrimaryWeapon);
+		if (CarriedAmmoMap.Contains(PrimaryWeapon->GetWeaponType()))
+		{
+			AmmoLeft = CarriedAmmoMap[PrimaryWeapon->GetWeaponType()];
+			BugCharacter->OnAmmoLeftChanged.Broadcast(PrimaryWeapon->GetCurrentAmmo(), PrimaryWeapon->GetMagCapacity(), AmmoLeft);
+		}
 	}
 	CombatState = ECombatState::ECS_Equipping;
 }
@@ -534,21 +576,22 @@ void UCombatComponent::OnCombatStateChanged()
 	switch (CombatState)
 	{
 	case ECombatState::ECS_Reloading:
-		
-		if (BugCharacter)
+		if (BugCharacter && !BugCharacter->IsLocallyControlled()) 
 		{
 			BugCharacter->PlayReloadMontage();
-			if (PrimaryWeapon->GetReloadSound())
+			if (PrimaryWeapon && PrimaryWeapon->GetReloadSound())
 			{
 				UGameplayStatics::PlaySoundAtLocation(
-					this,
-					PrimaryWeapon->GetReloadSound(),
-					BugCharacter->GetActorLocation()
+				   this,
+				   PrimaryWeapon->GetReloadSound(),
+				   BugCharacter->GetActorLocation()
 				);
 			}
-			PrimaryWeapon->PlayReloadAnimation();
+			if (PrimaryWeapon)
+			{
+				PrimaryWeapon->PlayReloadAnimation();
+			}
 		}
-	
 		break;
 	case ECombatState::ECS_Equipping:
 		break;
@@ -573,6 +616,10 @@ void UCombatComponent::Reload()
 {
 	if (PrimaryWeapon && PrimaryWeapon->GetCurrentAmmo() != PrimaryWeapon->GetMagCapacity() && AmmoLeft > 0 && CombatState == ECombatState::ECS_Unoccupied)
 	{
+		if (BugCharacter && !BugCharacter->HasAuthority())
+		{
+			ReloadLocal();
+		}
 		RPC_Reload();
 	}
 }
@@ -599,6 +646,27 @@ void UCombatComponent::RPC_Reload_Implementation()
 }
 
 
+void UCombatComponent::ReloadLocal()
+{
+	CombatState = ECombatState::ECS_Reloading; 
+
+	if (BugCharacter)
+	{
+		BugCharacter->PlayReloadMontage();
+		if (PrimaryWeapon && PrimaryWeapon->GetReloadSound())
+		{
+			UGameplayStatics::PlaySoundAtLocation(
+			   this,
+			   PrimaryWeapon->GetReloadSound(),
+			   BugCharacter->GetActorLocation()
+			);
+		}
+		if (PrimaryWeapon)
+		{
+			PrimaryWeapon->PlayReloadAnimation();
+		}
+	}
+}
 
 void UCombatComponent::OnReloadAnimationFinished()
 {
@@ -615,6 +683,7 @@ void UCombatComponent::OnReloadAnimationFinished()
 		}
 		else
 		{
+			if (PrimaryWeapon) PrimaryWeapon->ResetAmmoCounters();
 			RPC_ReloadAnimationFinished();
 		}
 	}
@@ -675,6 +744,10 @@ void UCombatComponent::HandleReloadAmmo()
 {
 	if (BugCharacter)
 	{
+		if (PrimaryWeapon)
+		{
+			PrimaryWeapon->ResetAmmoCounters();
+		}
 		if (BugCharacter->HasAuthority() && PrimaryWeapon)
 		{
 			int32 MagCapacity = PrimaryWeapon->GetMagCapacity();

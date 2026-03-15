@@ -41,12 +41,16 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 	}
 	if (HasAuthority())
 	{
-		ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
-		if (BugCharacter)
+		if (!bFakeProjectile)
 		{
-			BugCharacter->GetHit(Hit.ImpactPoint);
-			UGameplayStatics::ApplyDamage(OtherActor, SelectedData->ImpactDamage, GetInstigatorController(), this, nullptr);
+			ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
+            if (BugCharacter)
+            {
+            	BugCharacter->GetHit(Hit.ImpactPoint);
+            	UGameplayStatics::ApplyDamage(OtherActor, SelectedData->ImpactDamage, GetInstigatorController(), this, nullptr);
+            }
 		}
+		
 	}
 	Super::OnHit(HitComponent, OtherActor, OtherComponent, NormalImpulse, Hit);
 }

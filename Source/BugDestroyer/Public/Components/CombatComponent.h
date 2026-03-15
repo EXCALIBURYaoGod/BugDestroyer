@@ -6,44 +6,54 @@
 #include "Components/ActorComponent.h"
 #include "CombatComponent.generated.h"
 
-
+/**
+ * Combat state enum representing the current combat action state
+ */
 UENUM(BlueprintType)
 enum class ECombatState : uint8
 {
-	ECS_Unoccupied UMETA(DisplayName = "Unoccupied"),
-	ECS_Equipping UMETA(DisplayName = "Equipping"),
-	ECS_Reloading UMETA(DisplayName = "Reloading"),
-	ECS_TossingGrenade UMETA(DisplayName = "TossingGrenade"),
+	ECS_Unoccupied UMETA(DisplayName = "Unoccupied"),        /**< No combat action in progress */
+	ECS_Equipping UMETA(DisplayName = "Equipping"),          /**< Equipping a weapon */
+	ECS_Reloading UMETA(DisplayName = "Reloading"),          /**< Reloading the equipped weapon */
+	ECS_TossingGrenade UMETA(DisplayName = "TossingGrenade"),/**< Tossing a grenade */
 	
-	ECS_Max UMETA(DisplayName = "DefaultMAX")
+	ECS_Max UMETA(DisplayName = "DefaultMAX")               /**< Maximum enum value */
 };
 
+// Forward declarations
 enum class EWeaponType : uint8;
 class AGameCommonPlayerController;
-class ACommonPlayerController;
 class ABugHud;
 class AWeapon;
 
-UCLASS()
+UCLASS(Blueprintable, BlueprintType)
 class BUGDESTROYER_API UCombatComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
+	/** Constructor */
 	UCombatComponent();
+	
+	/** Friend class declaration for ABugCharacter to access private members */
 	friend class ABugCharacter;
 	
-	// begin AActor Interface
+	// Begin UActorComponent Interface
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
-	// end AActor Interface
+	// End UActorComponent Interface
 	
-	// only server calls
+	/** Equip a weapon (server only) */
 	void EquipWeapon(AWeapon* WeaponToEquip);
+	
+	/** Reload the equipped weapon (server only) */
 	void Reload();
+	
+	/** Handle ammo reloading logic (server only) */
 	void HandleReloadAmmo();
+	
+	/** Pick up ammo for a specific weapon type (server only) */
 	void PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount);
-	// only server calls
 
 	
 protected:
@@ -58,19 +68,21 @@ protected:
 	void OnRep_SecondaryWeapon();
 	void Fire();
 	void ExecuteFire(bool InIsFire);
+	void LocalPlayFireFX(const FVector& InHitTarget, int32 InRandomSeed);
 	void TossGrenade();
 	void LaunchGrenade();
 	void ShowAttachedGrenade(bool bShowGrenade);
 	UFUNCTION(Server, Reliable)
 	void RPC_TossGrenade();
 	UFUNCTION(Server, Reliable)
-	void RPC_ServerStartFire(const FVector_NetQuantize& TraceHitTarget);
+	void RPC_ServerStartFire(const FVector_NetQuantize& TraceHitTarget, int32 InRandomSeed);
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPC_StartFire(const FVector_NetQuantize& TraceHitTarget);
+	void MulticastRPC_SimulateFireFX(const FVector_NetQuantize& TraceHitTarget, int32 InRandomSeed);
 	UFUNCTION(Server, Reliable)
 	void RPC_SetHitTarget(const FVector_NetQuantize& ClientHitTarget);
 	UFUNCTION(Server, Reliable)
 	void RPC_Reload();
+	void ReloadLocal();
 	UFUNCTION(Server, Reliable)
 	void RPC_ReloadAnimationFinished();
 	
@@ -86,6 +98,7 @@ protected:
 	void SwapWeapons();
 	UFUNCTION(Server, Reliable)
 	void RPC_SwapWeapons();
+	
 	
 private:
 	UPROPERTY()
@@ -144,6 +157,11 @@ private:
 	
 	UPROPERTY(EditAnywhere, Category= "Grenade")
 	TSubclassOf<class AProjectileGrenade> GrenadeClass;
+	UPROPERTY(EditAnywhere, Category= "Grenade")
+	TSubclassOf<class AProjectileGrenade> FakeGrenadeClass;
+	
+	UPROPERTY(VisibleAnywhere, Category= "Random")
+	int32 RandomSeed = 1334;
 	
 public:
 	UPROPERTY(Replicated)

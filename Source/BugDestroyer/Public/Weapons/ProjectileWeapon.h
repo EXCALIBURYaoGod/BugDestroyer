@@ -21,15 +21,19 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	
 	// begin AWeapon Interface
-	virtual void Fire(const FVector& HitTarget);
+	virtual void ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSeed) override;
+	void SpawnFakeProjectile(const FVector& HitTarget);
+	virtual void SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed) override;
 	// end AWeapon Interface
 	
 protected:
 	virtual void BeginPlay() override;
 
 private:
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category= "Projectiles")
 	TSubclassOf<AProjectile> ProjectileClass;
+	UPROPERTY(EditAnywhere, Category= "Projectiles")
+	TSubclassOf<AProjectile> FakeProjectileClass;
 	
 public:
 	

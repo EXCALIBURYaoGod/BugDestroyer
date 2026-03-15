@@ -1,8 +1,10 @@
-// //Copyrights @FpsLuping all reserved
+// Copyrights @FpsLuping all reserved
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
+#include "BugTypes/BugStructTypes.h"
 #include "GameFramework/Actor.h"
 #include "Weapon.generated.h"
 
@@ -54,19 +56,31 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void SetOwner(AActor* NewOwner) override;
 	// end AActor Interface
+
+	virtual void SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed);
+	virtual void ServerExecuteFireLogic(const FVector& HitTarget, int32 RandomSeed);
 	
-	void ShowPickupWidget(bool bShowWidget, ABugCharacter* BugCharacter = nullptr);
-	virtual void Fire(const FVector& HitTarget);
+	const FImpactEffectData* GetHitImpactDataByHitActorOwnTag(AActor* HitActor);
 	void DropWeapon(const FVector& Direction = FVector::ZeroVector);
 	void UpdateWeaponDither(float Alpha);
 	void PlayReloadAnimation();
-	
+	void ShowPickupWidget(bool bShowWidget, ABugCharacter* BugCharacter = nullptr);
+	void ClientSpendRoundAmmo();
+	void ResetAmmoCounters();
+	UPROPERTY(Replicated)
+	int32 ServerAuthShots;
+	int32 LocalFiredShots;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnWeaponStateSet();
 	
 	UPROPERTY()
 	ABugCharacter* CachedOwningBugCharacterForEquip;
+	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
+	FImpactEffectData DefaultImpactData;
+	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
+	TMap<FGameplayTag, FImpactEffectData> TaggedImpactEffects;
 	
 	UFUNCTION()
 	virtual void OnSphereOverlap(
@@ -85,6 +99,7 @@ protected:
 		UPrimitiveComponent* OtherComp,
 		int32 OtherBodyIndex
 	);
+
 	
 private:
 	UPROPERTY(VisibleAnywhere, Category= "Weapon Properties")
@@ -131,7 +146,7 @@ private:
 	UFUNCTION()
 	void OnRep_CurrentAmmo();
 	void AttachToCharacter(const FName& SocketName);
-	void SpendRoundAmmo();
+	void ServerSpendRoundAmmo();
 	void CreateMIDs();
 	
 public:

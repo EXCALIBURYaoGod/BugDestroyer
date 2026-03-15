@@ -16,8 +16,9 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	void ApplyRadiaDamageFromImpactData(const FImpactEffectData* SelectedData);
 	virtual void OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit) override;
-	
+	void HandleFXDestruction();
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
 	class UNiagaraComponent* TrailComponent;
 	
@@ -32,8 +33,7 @@ private:
 	float DamageFalloff;
 	UPROPERTY(VisibleAnywhere)
 	UAudioComponent* ProjectileFlyLoopComponent;
-	
-	void HandleFXDestruction();
+
 	
 	
 public:

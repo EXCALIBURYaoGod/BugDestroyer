@@ -111,6 +111,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "GameplayTags")
 	FGameplayTagContainer OwnedTags;
 	
+	// == Hit boxes used for server-side rewind ==
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	class UBoxComponent* HeadBox;
+	
+	
 private:
 	UPROPERTY(VisibleAnywhere, Category = Camera)
 	USpringArmComponent* CameraBoom;

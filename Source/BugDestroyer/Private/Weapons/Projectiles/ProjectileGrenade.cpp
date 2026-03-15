@@ -54,51 +54,24 @@ void AProjectileGrenade::Destroyed()
 	
 	if (HasAuthority())
 	{
-		// 设置要忽略伤害的 Actor（比如手雷自己，虽然它马上就没了）
-		TArray<AActor*> IgnoreActors;
-
-		// 应用带衰减的范围伤害
-		UGameplayStatics::ApplyRadialDamageWithFalloff(
-			this,                        // WorldContextObject
-			BaseDamage,                  // 内圈全额伤害
-			MinimumDamage,               // 边缘最小伤害
-			GetActorLocation(),          // 爆炸中心点 (手雷当前位置)
-			DamageInnerRadius,           // 内圈半径
-			DamageOuterRadius,           // 外圈半径
-			DamageFalloff,               // 衰减指数
-			UDamageType::StaticClass(),  // 伤害类型 (可自定义，用于区分爆炸/火焰/毒气伤害)
-			IgnoreActors,                // 忽略列表
-			this,                        // 伤害制造者 (DamageCauser)
-			GetInstigatorController(),   // 施加伤害的控制器 (InstigatorController，极重要！)
-			ECC_Visibility               // 碰撞通道 (如果是 ECC_Visibility，躲在掩体后的怪物可以免伤)
-		);
-		
-		const FVector ExplodeLocation = GetActorLocation();
-		// 1. 绘制内圈 (全额伤害区 - 红色)
-		DrawDebugSphere(
-			GetWorld(),
-			ExplodeLocation,
-			DamageInnerRadius,
-			12,                // 分段数（球体的平滑度）
-			FColor::Red,
-			false,             // 是否持久化（false 表示只存在特定时间）
-			5.0f,              // 显示时长 (5秒)
-			0,                 // 深度优先级
-			1.5f               // 线条粗细
-		);
-
-		// 2. 绘制外圈 (最大伤害范围 - 绿色)
-		DrawDebugSphere(
-			GetWorld(),
-			ExplodeLocation,
-			DamageOuterRadius,
-			24,                // 外圈大，分段数多一点更圆滑
-			FColor::Green,
-			false,
-			5.0f,
-			0,
-			1.0f
-		);
+		if (!bFakeProjectile)
+		{
+			TArray<AActor*> IgnoreActors;
+			UGameplayStatics::ApplyRadialDamageWithFalloff(
+				this,                        // WorldContextObject
+				BaseDamage,                  // 内圈全额伤害
+				MinimumDamage,               // 边缘最小伤害
+				GetActorLocation(),          // 爆炸中心点 (手雷当前位置)
+				DamageInnerRadius,           // 内圈半径
+				DamageOuterRadius,           // 外圈半径
+				DamageFalloff,               // 衰减指数
+				UDamageType::StaticClass(),  // 伤害类型 (可自定义，用于区分爆炸/火焰/毒气伤害)
+				IgnoreActors,                // 忽略列表
+				this,                        // 伤害制造者 (DamageCauser)
+				GetInstigatorController(),   // 施加伤害的控制器 (InstigatorController，极重要！)
+				ECC_Visibility               // 碰撞通道 (如果是 ECC_Visibility，躲在掩体后的怪物可以免伤)
+			);
+		}
 	}
 	Super::Destroyed();
 }

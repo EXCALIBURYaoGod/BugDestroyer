@@ -21,115 +21,104 @@ void AShotGunWeapon::BeginPlay()
 	
 }
 
-void AShotGunWeapon::Fire(const FVector& HitTarget)
+void AShotGunWeapon::ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSeed)
 {
+	AWeapon::ServerExecuteFireLogic(HitTarget, InRandomSeed);
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (!OwnerPawn) return;
-	AWeapon::Fire(HitTarget);
-	const USkeletalMeshSocket* MuzzleSocket = GetWeaponMesh()->GetSocketByName("Muzzle");
-	if (MuzzleSocket)
-	{
+	
+	TArray<FPelletHitInfo> OutHits;
 
-		FTransform SocketTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
-		FVector MuzzleSocketLocation = SocketTransform.GetLocation();
-		FVector LienTraceEnd;
-		for (uint32 i = 0; i < NumberOfPellets; i++)
+	for (uint32 i = 0; i < NumberOfPellets; i++)
+	{
+		FHitResult TraceHit;
+		FVector TraceEnd = PerformHitScanTrace(OwnerPawn, HitTarget, TraceHit, InRandomSeed + i);
+		FPelletHitInfo Info;
+		if (TraceHit.bBlockingHit)
 		{
-			LienTraceEnd = TraceEndWithScatter(MuzzleSocketLocation, HitTarget);
-			UWorld* World = GetWorld();
-			if (World)
-			{
-				FHitResult FireHit;
-				FCollisionQueryParams QueryParams;
-				QueryParams.AddIgnoredActor(this); 
-				QueryParams.AddIgnoredActor(OwnerPawn);
-				World->LineTraceSingleByChannel(
-					FireHit,
-					MuzzleSocketLocation,
-					LienTraceEnd,
-					ECC_Visibility,
-					QueryParams
-					);
-				FVector BeamEnd = LienTraceEnd;
-				if (FireHit.bBlockingHit)
-				{
-					const FImpactEffectData* SelectedData = &DefaultImpactData;
-					FGameplayTagContainer TargetTags;
-					if (IGameplayTagAssetInterface* TagInterface = Cast<IGameplayTagAssetInterface>(FireHit.GetActor()))
-					{
-						TagInterface->GetOwnedGameplayTags(TargetTags);
+			ApplyDamageByTag(OwnerPawn, TraceHit);
 			
-						for (const auto& Pair : TaggedImpactEffects)
-						{
-							if (TargetTags.HasTag(Pair.Key))
-							{
-								SelectedData = &Pair.Value;
-								break;
-							}
-						}
-					}
-					ABugCharacter* BugCharacter = Cast<ABugCharacter>(FireHit.GetActor());
-					if (BugCharacter)
-					{
-						AController* InstigatorController = OwnerPawn->GetController();
-						if (HasAuthority() && InstigatorController)
-						{
-							BugCharacter->GetHit(FireHit.ImpactPoint);
-							UGameplayStatics::ApplyDamage(
-                        		BugCharacter,
-                        		SelectedData->ImpactDamage,
-                        		InstigatorController,
-                        		this,
-                        		UDamageType::StaticClass()
-                        		);
-						}
-						
-					}
-					if (SelectedData->Particles)
-					{
-						UGameplayStatics::SpawnEmitterAtLocation(
-							World,
-							SelectedData->Particles,
-							FireHit.ImpactPoint,
-							FireHit.ImpactNormal.Rotation()
-						);
-					}
-					if (SelectedData->Sound)
-					{
-						UGameplayStatics::PlaySoundAtLocation(
-							this,
-							SelectedData->Sound,
-							FireHit.ImpactPoint
-						);
-					}
-					
-				}
-				if (BeamParticle)
-				{
-					UParticleSystemComponent* Beam = UGameplayStatics::SpawnEmitterAtLocation(
-						World,
-						BeamParticle,
-						SocketTransform
-					);
-					if (Beam)
-					{
-						if (FireHit.bBlockingHit)
-						{
-							Beam->SetVectorParameter(FName("Target"), FireHit.ImpactPoint);
-						}
-						else
-						{
-							Beam->SetVectorParameter(FName("Target"), BeamEnd);
-						}
-					}
-				}
-				
-			}
+			Info.HitPoint = TraceHit.ImpactPoint;
+			Info.HitNormal = TraceHit.ImpactNormal;
+			Info.HitActor = TraceHit.GetActor();
 		}
-		
-		
+		Info.TraceEnd = TraceEnd;
+		OutHits.Add(Info);
+	}
+	
+	if (OutHits.Num() > 0)
+	{
+		Multicast_SpawnShotgunFX(OutHits);
 	}
 }
+
+void AShotGunWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed)
+{
+	Super::SimulateFireFX(HitTarget, InRandomSeed);
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			const USkeletalMeshSocket* MuzzleSocket = GetWeaponMesh()->GetSocketByName("Muzzle");
+			if (!MuzzleSocket) return;
+			FTransform SocketTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
+			FVector MuzzleSocketLocation = SocketTransform.GetLocation();
+			if (MuzzleFlash)
+			{
+				UGameplayStatics::SpawnEmitterAtLocation(
+					World,
+					MuzzleFlash,
+					SocketTransform
+				);
+			}
+			if (FireSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(
+					this,
+					FireSound,
+					MuzzleSocketLocation
+				);
+			}
+			TArray<FPelletHitInfo> OutHits;
+			for (uint32 i = 0; i < NumberOfPellets; i++)
+			{
+				FHitResult TraceHit;
+				FVector TraceEnd = PerformHitScanTrace(OwnerPawn, HitTarget, TraceHit, InRandomSeed + i);
+				FPelletHitInfo Info;
+				if (TraceHit.bBlockingHit)
+				{
+					Info.HitPoint = TraceHit.ImpactPoint;
+					Info.HitNormal = TraceHit.ImpactNormal;
+					Info.HitActor = TraceHit.GetActor();
+				}
+				Info.TraceEnd = TraceEnd;
+				OutHits.Add(Info);
+			}
+	
+			if (OutHits.Num() > 0)
+			{
+				for (const FPelletHitInfo& Pellet : OutHits)
+				{
+					SpawnImpactEffect(Pellet.HitPoint, Pellet.HitNormal, Pellet.HitActor.Get());
+					SpawnBeamFX(Pellet.TraceEnd);
+				}
+			}
+		}
+	}
+}
+
+void AShotGunWeapon::Multicast_SpawnShotgunFX_Implementation(const TArray<FPelletHitInfo>& OutHits)
+{
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (OwnerPawn && OwnerPawn->IsLocallyControlled()) return;
+	for (const FPelletHitInfo& Pellet : OutHits)
+	{
+		SpawnImpactEffect(Pellet.HitPoint, Pellet.HitNormal, Pellet.HitActor.Get());
+		SpawnBeamFX(Pellet.TraceEnd);
+	}
+}
+
 
 
 

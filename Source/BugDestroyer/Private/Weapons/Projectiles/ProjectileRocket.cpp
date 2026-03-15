@@ -4,7 +4,6 @@
 #include "Weapons/Projectiles/ProjectileRocket.h"
 
 #include "NiagaraComponent.h"
-#include "Character/BugCharacter.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/AudioComponent.h"
@@ -31,24 +30,10 @@ void AProjectileRocket::BeginPlay()
 }
 
 
-void AProjectileRocket::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
-                              UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
+
+
+void AProjectileRocket::ApplyRadiaDamageFromImpactData(const FImpactEffectData* SelectedData)
 {
-	const FImpactEffectData* SelectedData = &DefaultImpactData;
-	FGameplayTagContainer TargetTags;
-	if (IGameplayTagAssetInterface* TagInterface = Cast<IGameplayTagAssetInterface>(OtherActor))
-	{
-		TagInterface->GetOwnedGameplayTags(TargetTags);
-		
-		for (const auto& Pair : TaggedImpactEffects)
-		{
-			if (TargetTags.HasTag(Pair.Key))
-			{
-				SelectedData = &Pair.Value;
-				break;
-			}
-		}
-	}
 	if (APawn* FiringPawn = GetInstigator())
 	{
 		if (AController* FiringController = FiringPawn->GetController())
@@ -68,6 +53,13 @@ void AProjectileRocket::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 			);
 		}
 	}
+}
+
+void AProjectileRocket::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
+                              UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
+{
+	const FImpactEffectData* SelectedData = GetHitImpactDataByHitActorOwnTag(OtherActor);
+	if (!bFakeProjectile) ApplyRadiaDamageFromImpactData(SelectedData);
 	HandleFXDestruction();
 	Super::OnHit(HitComponent, OtherActor, OtherComponent, NormalImpulse, Hit);
 }

@@ -27,7 +27,9 @@ protected:
 	virtual void BeginPlay() override;
 	UFUNCTION()
 	virtual void OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
+	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const override;
 	
+	const FImpactEffectData* GetHitImpactDataByHitActorOwnTag(AActor* OtherActor);
 	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
 	FImpactEffectData DefaultImpactData;
 	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
@@ -36,6 +38,8 @@ protected:
 	UBoxComponent* CollisionBox;
 	UPROPERTY(VisibleAnywhere)
 	UProjectileMovementComponent* ProjectileMovementComponent;
+	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
+	bool bFakeProjectile;
 	
 private:
 	UPROPERTY(VisibleAnywhere)

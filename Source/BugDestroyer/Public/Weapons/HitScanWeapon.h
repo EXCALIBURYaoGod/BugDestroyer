@@ -8,8 +8,9 @@
 #include "BugTypes/BugStructTypes.h"
 #include "HitScanWeapon.generated.h"
 
+
 /**
- * 射线检测武器，无需子弹，没有子弹下坠
+ * 射线检测武器，无需子弹，没有子弹下坠，模拟弹道散布
  */
 UCLASS()
 class BUGDESTROYER_API AHitScanWeapon : public AWeapon
@@ -21,23 +22,28 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	
+
 	// begin AWeapon Interface
-	virtual void Fire(const FVector& HitTarget) override;
+	virtual void ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSeed) override;
+	virtual void SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed) override;
 	// end AWeapon Interface
 	
-	FVector TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget);
-	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
-	FImpactEffectData DefaultImpactData;
-	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
-	TMap<FGameplayTag, FImpactEffectData> TaggedImpactEffects;
+	void ApplyDamageByTag(APawn* OwnerPawn, FHitResult TraceHit);
+	FVector PerformHitScanTrace(const APawn* OwnerPawn, const FVector& HitTarget, FHitResult& TraceHit, int32 InRandomSeed);
+	UFUNCTION(NetMulticast, UnReliable)
+	void Multicast_SpawnImpactFX(const FVector& Point, const FVector& Normal, AActor* HitActor);
+	UFUNCTION(NetMulticast, UnReliable)
+	void Multicast_SpawnBeamFX(const FVector& TraceEnd);
+	FVector TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget, int32 InRandomSeed);
+	void SpawnBeamFX(const FVector& TraceEnd);
+	void SpawnImpactEffect(const FVector& Point, const FVector& Normal, AActor* HitActor);
+	
 	UPROPERTY(EditAnywhere, Category = "ScanEffects")
 	UParticleSystem* BeamParticle;
 	UPROPERTY(EditAnywhere, Category = "ScanEffects")
 	UParticleSystem* MuzzleFlash;
 	UPROPERTY(EditAnywhere, Category = "ScanEffects")
 	USoundBase* FireSound;
-	
 	
 private:
 	

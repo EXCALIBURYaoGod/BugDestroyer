@@ -1,5 +1,4 @@
-// //Copyrights @FpsLuping all reserved
-
+// Copyrights @FpsLuping all reserved
 
 #include "Weapons/Weapon.h"
 
@@ -13,34 +12,37 @@
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
-
 AWeapon::AWeapon()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 	
 	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
-	WeaponMesh->SetupAttachment(RootComponent);
 	SetRootComponent(WeaponMesh);
 	
 	AreaSphere = CreateDefaultSubobject<USphereComponent>(TEXT("AreaSphere"));
-	AreaSphere->SetupAttachment(RootComponent);
+	AreaSphere->SetupAttachment(WeaponMesh);
 	
 	PickupWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("PickupWidget"));
-	PickupWidget->SetupAttachment(RootComponent);
+	PickupWidget->SetupAttachment(WeaponMesh);
 	PickupWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	PickupWidget->SetGenerateOverlapEvents(false);
-	
 }
 
 
 void AWeapon::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	SetReplicateMovement(true);
+	
+	// Hide pickup widget by default
 	if (PickupWidget)
 	{
 		PickupWidget->SetVisibility(false);
 	}
+	
+	// Set up collision and initial state on server
 	if (HasAuthority())
 	{
 		AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -49,6 +51,8 @@ void AWeapon::BeginPlay()
 		AreaSphere->OnComponentEndOverlap.AddUniqueDynamic(this, &ThisClass::OnSphereEndOverlap);
 		SetWeaponState(EWeaponState::EWS_Dropped);
 	}
+	
+	// Create material instances for dynamic modifications
 	CreateMIDs();
 }
 
@@ -60,9 +64,9 @@ void AWeapon::Tick(float DeltaTime)
 void AWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
 	DOREPLIFETIME(AWeapon, WeaponState);
 	DOREPLIFETIME(AWeapon, CurrentAmmo);
-	
 }
 
 void AWeapon::SetOwner(AActor* NewOwner)
@@ -74,6 +78,7 @@ void AWeapon::SetOwner(AActor* NewOwner)
 	}
 	
 }
+
 
 void AWeapon::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
                               UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -114,10 +119,12 @@ void AWeapon::OnRep_WeaponState()
 
 void AWeapon::OnRep_CurrentAmmo()
 {
+	int32 UnconfirmedShots = FMath::Max(0, LocalFiredShots - ServerAuthShots);
+	int32 OutCurrentAmmo = FMath::Max(0, CurrentAmmo - UnconfirmedShots);
 	if (CachedOwningBugCharacterForEquip)
 	{
 		int32 AmmoLeft = CachedOwningBugCharacterForEquip->GetAmmoLeft();
-		OnAmmoChanged.Broadcast(CurrentAmmo, MagCapacity, AmmoLeft);
+		OnAmmoChanged.Broadcast(OutCurrentAmmo, MagCapacity, AmmoLeft);
 	}
 }
 
@@ -137,6 +144,10 @@ void AWeapon::AttachToCharacter(const FName& SocketName)
 				false                          // bWeldSimulatedBodies
 			);
 			this->AttachToComponent(CharacterMesh, AttachmentRules, SocketName);
+		}
+		if (WeaponState == EWeaponState::EWS_EquippedSecondary)
+		{
+			return;
 		}
 		CachedOwningBugCharacterForEquip->OnWeaponChanged.Broadcast(this);
 	}
@@ -209,16 +220,37 @@ void AWeapon::OnWeaponStateSet()
 	}
 }
 
-void AWeapon::SpendRoundAmmo()
+void AWeapon::ServerSpendRoundAmmo()
 {
 	if (CurrentAmmo <= 0) return;
 	--CurrentAmmo;
+	ServerAuthShots++;
 	CurrentAmmo = FMath::Max(0, CurrentAmmo);
 	if (CachedOwningBugCharacterForEquip)
 	{
 		int32 AmmoLeft = CachedOwningBugCharacterForEquip->GetAmmoLeft();
 		OnAmmoChanged.Broadcast(CurrentAmmo, MagCapacity, AmmoLeft);
 	}
+}
+
+void AWeapon::ClientSpendRoundAmmo()
+{
+	if (CurrentAmmo <= 0) return;
+	LocalFiredShots++;
+	if (CachedOwningBugCharacterForEquip)
+	{
+		int32 UnconfirmedShots = FMath::Max(0, LocalFiredShots - ServerAuthShots);
+		int32 AmmoLeft = CachedOwningBugCharacterForEquip->GetAmmoLeft();
+		int32 OutCurrentAmmo = CurrentAmmo;
+		OutCurrentAmmo = FMath::Max(0, OutCurrentAmmo - UnconfirmedShots);
+		OnAmmoChanged.Broadcast(OutCurrentAmmo, MagCapacity, AmmoLeft);
+	}
+}
+
+void AWeapon::ResetAmmoCounters()
+{
+	LocalFiredShots = 0;
+	ServerAuthShots = 0;
 }
 
 void AWeapon::CreateMIDs()
@@ -271,7 +303,7 @@ void AWeapon::ShowPickupWidget(bool bShowWidget, ABugCharacter* BugCharacter)
 	}
 }
 
-void AWeapon::Fire(const FVector& HitTarget)
+void AWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed)
 {
 	if (FireAnimation && WeaponMesh)
 	{
@@ -286,15 +318,40 @@ void AWeapon::Fire(const FVector& HitTarget)
 		if (World)
 		{
 			World->SpawnActor<ACasing>(
-					CasingClass,
-					SocketTransform.GetLocation(),
-					SocketTransform.GetRotation().Rotator(),
-					SpawnParams
-				);
+				CasingClass,
+				SocketTransform.GetLocation(),
+				SocketTransform.GetRotation().Rotator(),
+				SpawnParams
+			);
 		}
 	}
-	SpendRoundAmmo();
 	
+	
+}
+
+void AWeapon::ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSeed)
+{
+	ServerSpendRoundAmmo();
+}
+
+const FImpactEffectData* AWeapon::GetHitImpactDataByHitActorOwnTag(AActor* HitActor)
+{
+	const FImpactEffectData* SelectedData = &DefaultImpactData;
+	FGameplayTagContainer TargetTags;
+	if (IGameplayTagAssetInterface* TagInterface = Cast<IGameplayTagAssetInterface>(HitActor))
+	{
+		TagInterface->GetOwnedGameplayTags(TargetTags);
+	
+		for (const auto& Pair : TaggedImpactEffects)
+		{
+			if (TargetTags.HasTag(Pair.Key))
+			{
+				SelectedData = &Pair.Value;
+				break;
+			}
+		}
+	}
+	return SelectedData;
 }
 
 void AWeapon::DropWeapon(const FVector& Direction)
