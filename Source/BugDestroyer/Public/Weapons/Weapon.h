@@ -99,7 +99,21 @@ protected:
 		UPrimitiveComponent* OtherComp,
 		int32 OtherBodyIndex
 	);
-
+	
+	// trace end with scatter
+	FVector TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget, int32 InRandomSeed);
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float DistanceToSphere = 800.f;
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float FireSphereRadius = 75.f;
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float DefaultFireSphereRadius = 75.f;
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	bool bUseScatter = false;
+	// trace end with scatter
+	
+	UPROPERTY(Replicated, EditAnywhere, Category= "ServerSideRewind")
+	bool bUseServerSideRewind = false;
 	
 private:
 	UPROPERTY(VisibleAnywhere, Category= "Weapon Properties")
@@ -130,16 +144,20 @@ private:
 	bool bAutomatic = true;
 	UPROPERTY(EditAnywhere, Category = "Weapon Properties", ReplicatedUsing = OnRep_CurrentAmmo )
 	int32 CurrentAmmo = 30;
+	UPROPERTY(VisibleAnywhere, Category= "Weapon Properties")
+	int32 ClientCurrentAmmo = 30;
 	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
 	int32 MagCapacity = 30;
 	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
 	EWeaponType WeaponType;
-	UPROPERTY(VisibleAnywhere, Category = "Weapon Mesh")
+	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
 	TArray<UMaterialInstanceDynamic*> DynamicMeshMID;
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
 	USoundBase* EquipSound;
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
 	USoundBase* ReloadSound;
+	UPROPERTY(EditAnywhere, Category="Weapon Properties")
+	float ReloadTime = 2.f;
 	
 	UFUNCTION()
 	void OnRep_WeaponState();
@@ -163,16 +181,23 @@ public:
 	FORCEINLINE void SetAutomatic(bool bInAutomatic) { bAutomatic = bInAutomatic; }
 	FORCEINLINE int32 GetMagCapacity() const { return MagCapacity; }
 	FORCEINLINE int32 GetCurrentAmmo() const { return CurrentAmmo; }
+	FORCEINLINE int32 GetClientCurrentAmmo() const { return ClientCurrentAmmo; }
+	FORCEINLINE void SetClientCurrentAmmo(int32 InNewAmmo) { ClientCurrentAmmo = InNewAmmo; }
 	FORCEINLINE void SetCurrentAmmo(int32 InCurrentAmmo) { CurrentAmmo = InCurrentAmmo; }
 	FORCEINLINE bool IsAmmoEmpty() const { return CurrentAmmo == 0; }
+	FORCEINLINE bool IsClientAmmoEmpty() const { return ClientCurrentAmmo == 0; }
 	FORCEINLINE EWeaponType GetWeaponType() const { return WeaponType; }
 	FORCEINLINE USoundBase* GetEquipSound() const { return EquipSound; }
 	FORCEINLINE USoundBase* GetReloadSound() const { return ReloadSound; }
 	FORCEINLINE UAnimationAsset* GetFireAnimation() const { return FireAnimation; }
 	FORCEINLINE TSubclassOf<ACasing> GetCasingClass() const { return CasingClass; }
+	FORCEINLINE void SetServerSideRewind(const bool InbUseServerSideRewind) { bUseServerSideRewind = InbUseServerSideRewind; }
+	FORCEINLINE float GetReloadTime() const { return ReloadTime; }
 	
 	UPROPERTY(BlueprintAssignable)
 	FOnAmmoChangedSignature OnAmmoChanged;
+	UPROPERTY(EditAnywhere, Category = "ServerSideRewind")
+	bool bDefaultUseSSR = true;
 	
 };
 

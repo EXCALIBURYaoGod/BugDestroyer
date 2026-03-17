@@ -37,7 +37,6 @@ private:
 	UOptionsDataRegistry* GetOrCreateDataRegistry();
 	
 	void OnResetBoundActionTriggerred();
-	void OnBackBoundActionTriggerred();
 	
 	UFUNCTION()
 	void OnOptionsTabSelected(FName TabID);
@@ -64,7 +63,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "Bug Options Screen", meta = (RowType = "/Script/CommonUI.CommonInputActionDataBase"))
 	FDataTableRowHandle ResetAction;
 	FUIActionBindingHandle ResetActionHandle;
-	FUIActionBindingHandle BackActionHandle;
 	
 	UPROPERTY(Transient)
 	TArray<UListDataObject_Base*> ResettableDataArray;

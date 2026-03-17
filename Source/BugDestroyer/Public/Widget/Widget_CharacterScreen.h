@@ -79,4 +79,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	AWeapon* CachedEquippedWeapon;
 	
+private:
+
+	
 };

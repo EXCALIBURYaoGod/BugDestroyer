@@ -12,6 +12,7 @@
 #include "Interfaces/InteractWithCrosshairsInterface.h"
 #include "BugCharacter.generated.h"
 
+class ULagCompensationComponent;
 class UBuffComponent;
 class UCombatComponent;
 class AWeapon;
@@ -49,6 +50,7 @@ public:
 	virtual void PostInitializeComponents() override;
 	// end Character Interface
 	
+	void GetHit(const FVector& HitPoint);
 	void EliminateCharacter();
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastRPC_EliminateCharacter();
@@ -57,13 +59,12 @@ public:
 		TagContainer = OwnedTags;
 	}
 	void PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount);
+	FVector CalculateLocalHitTarget();
 	
 protected:
 	virtual void BeginPlay() override;
 	
 	// Input Actions //
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputMappingContext* DefaultMappingContext;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* JumpAction;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -89,6 +90,7 @@ protected:
 	bool bWantsToMove = false;
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	void PlayEquipFX();
 	void EquipButtonPressed();
 	void StartCrouch();
 	void StopCrouch();
@@ -102,19 +104,60 @@ protected:
 	void ReleaseMoveButton();
 	void GrenadeButtonPressed();
 	void SwapButtonPressed();
+	
 	// begin Character Interface
 	virtual void Jump() override;
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	// end Character Interface
+	
 	// Input Actions //
 	
 	UPROPERTY(EditAnywhere, Category = "GameplayTags")
 	FGameplayTagContainer OwnedTags;
 	
-	// == Hit boxes used for server-side rewind ==
+	// == Hit boxes used for server-side rewind == //
 	UPROPERTY(EditAnywhere, Category = "HitBox")
-	class UBoxComponent* HeadBox;
-	
+	class UBoxComponent* Head;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Pelvis;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Spine;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* UpperArm_l;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* UpperArm_r;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* LowerArm_l;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* LowerArm_r;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Thigh_l;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Thigh_r;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Calf_l;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Calf_r;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Foot_l;
+	UPROPERTY(EditAnywhere, Category = "HitBox")
+	UBoxComponent* Foot_r;
+	UPROPERTY(VisibleAnywhere, Category = "HitBox")
+	TMap<FName, UBoxComponent*> HitBoxes;
+	/** * 封装 HitBox 初始化的辅助模板函数 
+	 * @param BoxComponent 引用类成员变量（如 Head, Pelvis）
+	 * @param Name 组件的 Object Name
+	 * @param BoneName 附加到的骨骼名称
+	 */
+	template<typename T>
+	void InitHitBox(T*& BoxComponent, FName Name, FName BoneName)
+	{
+		BoxComponent = CreateDefaultSubobject<T>(Name);
+		BoxComponent->SetupAttachment(GetMesh(), BoneName);
+		BoxComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		HitBoxes.Add(Name, BoxComponent);
+	}
+	// == Hit boxes used for server-side rewind == //
 	
 private:
 	UPROPERTY(VisibleAnywhere, Category = Camera)
@@ -153,18 +196,26 @@ private:
 	void OnRep_Shield();
 	// Shield
 	
+	// == Components == //
 	UPROPERTY(VisibleAnywhere)
 	UCombatComponent* CombatComponent;
 	UPROPERTY(VisibleAnywhere)
 	UBuffComponent* BuffComponent;
+	UPROPERTY(VisibleAnywhere)
+	ULagCompensationComponent* LagCompensationComponent;
+	// == Components == //
+	
+	
 	UFUNCTION(Server, Reliable)
 	void RPC_ServerEquipButtonPressed();
 	UFUNCTION(Server, Reliable)
 	void RPC_Sprint(bool bIsSprint);
 	UPROPERTY(ReplicatedUsing = OnRep_MaxWalkSpeed)
-	float ServerMaxWalkSpeed;
+	float ServerMaxWalkSpeed = 350.f;
 	UPROPERTY(EditAnywhere, Category = "Speed")
 	float DefaultMaxWalkSpeed = 350.f;
+	UPROPERTY(EditAnywhere, Category = "Speed")
+	float DefaultMaxWalkSpeedCrouched = 200.f;
 	UPROPERTY(EditAnywhere, Category = "Speed")
 	float SprintMaxWalkSpeed = 600.f;
 	bool bSprintButtonPressed = false;
@@ -220,17 +271,8 @@ private:
 	float CurrentDitherAlpha =  1.f;
 	UPROPERTY(VisibleAnywhere, Category = "Character")
 	TArray<UMaterialInstanceDynamic*> DynamicMeshMID;
-	FTimerHandle NetStatTimerHandle;
-	void UpdateNetworkStats();
-	UPROPERTY(BlueprintReadOnly, Category = "Network", meta = (AllowPrivateAccess = true))
-	float CurrentPing;
-	UPROPERTY(BlueprintReadOnly, Category = "Network", meta = (AllowPrivateAccess = true))
-	float PacketLossPercentage;
-	bool bLastNetWarning = false;
-	
+
 public:
-	void GetHit(const FVector& HitPoint);
-	// Only Server Calls
 	void SetOverlappingWeapon(AWeapon* Weapon, bool bIsOverlapping);
 	void SetMaxWalkSpeed(float InMaxWalkSpeed);
 	
@@ -238,9 +280,12 @@ public:
 	void OnReloadAnimationFinished();
 	void OnEquipAnimationFinished();
 	void OnTossGrenadeFinished();
-
+	// Animation Notify Callbacks
+	
 	FORCEINLINE bool IsWeaponEquipped() const { return CombatComponent && CombatComponent->PrimaryWeapon; }
+	FORCEINLINE UCombatComponent* GetCombatComponent() const { return CombatComponent; }
 	FORCEINLINE bool IsAiming() const { return CombatComponent && CombatComponent->bAiming; }
+	FORCEINLINE ULagCompensationComponent* GetLagCompensationComponent() const { return LagCompensationComponent; }
 	FORCEINLINE float GetNetEstimatedAimYaw() const { return NetEstimatedAimYaw; }
 	FORCEINLINE UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 	FORCEINLINE bool IsElimmed() const { return bElimmed; }
@@ -255,19 +300,20 @@ public:
 	FORCEINLINE int32 GetGrenadeAmount() const { return CombatComponent->GrenadeAmount; }
 	FORCEINLINE void Healing (float HealAmount, float HealingTime) const{ if (BuffComponent) BuffComponent->Heal(HealAmount, HealingTime); }
 	FORCEINLINE void ShieldReplenish (float ShieldAmount, float ShieldReplenishTime) const{ if (BuffComponent) BuffComponent->ShieldReplenish(ShieldAmount, ShieldReplenishTime); }
-	
 	FORCEINLINE void BuffingSpeed(float BuffBaseSpeed, float BuffCrouchSpeed, float BuffSpeedTime) const{ if (BuffComponent) BuffComponent->BuffSpeed(BuffBaseSpeed, BuffCrouchSpeed, BuffSpeedTime); }
 	FORCEINLINE bool IsSprintButtonPressed() const { return bSprintButtonPressed; }
 	FORCEINLINE float GetDefaultMaxWalkSpeed() const { return DefaultMaxWalkSpeed; }
+	FORCEINLINE float GetDefaultMaxWalkSpeedCrouched() const { return DefaultMaxWalkSpeedCrouched; }
 	FORCEINLINE float GetSprintMaxWalkSpeed() const { return SprintMaxWalkSpeed; }
 	FORCEINLINE void BuffingJump(float JumpVelocity, float JumpBuffTime) const { if (BuffComponent) BuffComponent->BuffJump(JumpVelocity, JumpBuffTime); }
+	FORCEINLINE TMap<FName, UBoxComponent*> GetHitBoxes() const { return HitBoxes; }
 	
 	FVector GetHitTarget() const;
 	AWeapon* GetEquippedWeapon() const;
 	void PlayFireMontage();
 	void PlayHitReactMontage(const FVector& HitPoint);
 	void PlayDeathMontage(const FVector& HitPoint);
-	void PlayEquipMontage();
+	void PlayEquipMontage(AWeapon* WeaponToEquip);
 	void PlayReloadMontage();
 	void PlayGrenadeTossMontage();
 	// Health

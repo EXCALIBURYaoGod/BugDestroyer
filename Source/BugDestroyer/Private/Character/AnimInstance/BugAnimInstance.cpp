@@ -44,6 +44,29 @@ void UBugAnimInstance::ShouldUseAimOffsetsForRun()
 	}
 }
 
+void UBugAnimInstance::RotateRightHandToAim(float DeltaSeconds, AWeapon* EquippedWeapon)
+{
+	FTransform RightHandTransform = EquippedWeapon->GetWeaponMesh()->GetSocketTransform(FName("hand_r"), RTS_World);
+	FRotator LookAtRot;
+	if (Character->IsLocallyControlled())
+	{
+		FVector LocalHitTarget = Character->CalculateLocalHitTarget();
+		LookAtRot = UKismetMathLibrary::FindLookAtRotation(
+			RightHandTransform.GetLocation(), 
+			RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - LocalHitTarget)
+		);
+		RightHandRotation = LookAtRot; 
+	}
+	else
+	{
+		LookAtRot = UKismetMathLibrary::FindLookAtRotation(
+			RightHandTransform.GetLocation(), 
+			RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - Character->GetHitTarget())
+		);
+		RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRot, DeltaSeconds, 30.f);
+	}
+}
+
 void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
@@ -88,7 +111,10 @@ void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 			WeaponType = Character->GetEquippedWeapon()->GetWeaponType();
 			ShouldUseAimOffsetsForRun();
 			FRotator CurrentRotation = Character->GetBaseAimRotation();
-			CurrentRotation.Yaw = Character->GetNetEstimatedAimYaw();
+			if (!Character->IsLocallyControlled())
+			{
+				CurrentRotation.Yaw = Character->GetNetEstimatedAimYaw();
+			}
 			StartingAimRotation = Character->GetActorRotation();
 			FRotator DeltaAimRotation = UKismetMathLibrary::NormalizedDeltaRotator(CurrentRotation, StartingAimRotation);
 			if (Speed <= 1.f && !bIsInAir) 
@@ -138,11 +164,9 @@ void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 				LeftHandTransform.SetRotation(FQuat(OutRotation));
 				
 				// 旋转右手使武器朝向准心
-				FTransform RightHandTransform = EquippedWeapon->GetWeaponMesh()->GetSocketTransform(FName("hand_r"), RTS_World);
-				FRotator LookAtRot = UKismetMathLibrary::FindLookAtRotation(RightHandTransform.GetLocation(), 
-					RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - Character->GetHitTarget()));
-				//RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRot, DeltaSeconds, 30.f);
-				RightHandRotation = LookAtRot;
+				RotateRightHandToAim(DeltaSeconds, EquippedWeapon);
+				// 旋转右手使武器朝向准心
+				
 			}
 		}
 		//Debug::Print(FString::Printf(TEXT("AO_Yaw: %f\n TurningInPlace: %s"), AO_Yaw, *UEnum::GetValueAsString(TurningInPlace)));

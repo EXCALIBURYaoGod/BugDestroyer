@@ -5,9 +5,12 @@
 
 #include "GameplayTagAssetInterface.h"
 #include "BugDestroyer/BugDestroyer.h"
+#include "Character/BugCharacter.h"
 #include "Components/BoxComponent.h"
+#include "Components/LagCompensationComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Weapons/Weapon.h"
 
 
 AProjectile::AProjectile()
@@ -26,6 +29,8 @@ AProjectile::AProjectile()
 	
 	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComponent"));
 	ProjectileMovementComponent->bRotationFollowsVelocity = true;
+	ProjectileMovementComponent->InitialSpeed = ProjectileInitSpeed;
+	ProjectileMovementComponent->MaxSpeed = ProjectileMaxSpeed;
 	
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
 	StaticMesh->SetupAttachment(CollisionBox);
@@ -57,7 +62,7 @@ void AProjectile::BeginPlay()
 	{
 		CollisionBox->IgnoreActorWhenMoving(MyOwner, true);
 	}
-
+	
 	CollisionBox->OnComponentHit.AddDynamic(this, &ThisClass::OnHit);
 	
 }
@@ -141,6 +146,48 @@ void AProjectile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }
+
+void AProjectile::ServerProjectileHitRequest_Implementation(ABugCharacter* HitCharacter,
+	const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& InitialVelocity, float HitTime,
+	class AWeapon* DamageCauser)
+{
+	if (ABugCharacter* ProjectileInstigator = Cast<ABugCharacter>(GetInstigator()))
+	{
+		if (ULagCompensationComponent* LagCompensationComponent = ProjectileInstigator->GetLagCompensationComponent())
+		{
+			FServerSideRewindResult ServerSideRewindResult = LagCompensationComponent->ServerSideRewind_Projectile(HitCharacter, TraceStart, InitialVelocity, HitTime);
+			if (HitCharacter && ServerSideRewindResult.bHitConfirmed)
+			{
+				float Damage = DamageCauser->GetHitImpactDataByHitActorOwnTag(HitCharacter)->ImpactDamage;
+				UGameplayStatics::ApplyDamage(
+					HitCharacter,
+					Damage,
+					ProjectileInstigator->GetController(),
+					DamageCauser,
+					UDamageType::StaticClass()
+				);
+			}
+		}
+	}
+	
+}
+
+
+#if WITH_EDITOR
+void AProjectile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	FName PropertyName = PropertyChangedEvent.Property != nullptr? PropertyChangedEvent.Property->GetFName(): NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(AProjectile, ProjectileInitSpeed) || PropertyName == GET_MEMBER_NAME_CHECKED(AProjectile, ProjectileMaxSpeed))
+	{
+		if (ProjectileMovementComponent)
+		{
+			ProjectileMovementComponent->InitialSpeed = ProjectileInitSpeed;
+			ProjectileMovementComponent->MaxSpeed = ProjectileMaxSpeed;
+		}
+	}
+}
+#endif
 
 
 

@@ -73,6 +73,7 @@ void AProjectileGrenade::Destroyed()
 			);
 		}
 	}
+	
 	Super::Destroyed();
 }
 

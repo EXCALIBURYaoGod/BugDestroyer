@@ -5,6 +5,7 @@
 
 #include "Character/BugCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Weapons/Weapon.h"
 
 
 UBuffComponent::UBuffComponent()
@@ -73,7 +74,15 @@ void UBuffComponent::ShieldReplenishRampUp(float DeltaTime)
 void UBuffComponent::BuffSpeed(float BuffBaseSpeed, float BuffCrouchSpeed, float BuffSpeedTime)
 {
 	if (BugCharacter == nullptr || bSpeedBuffing) return;
-	
+	if (BugCharacter->GetEquippedWeapon() && BugCharacter->GetEquippedWeapon()->GetWeaponType() == EWeaponType::EWT_RocketLauncher)
+	{
+		if (UCharacterMovementComponent* CharMovComp = BugCharacter->GetCharacterMovement())
+		{
+			CharMovComp->MaxWalkSpeed = BugCharacter->GetDefaultMaxWalkSpeed();
+			CharMovComp->MaxWalkSpeedCrouched = BugCharacter->GetDefaultMaxWalkSpeedCrouched();
+		}
+		return;
+	}
 	bSpeedBuffing = true;
 	if (UCharacterMovementComponent* CharMovComp = BugCharacter->GetCharacterMovement())
 	{

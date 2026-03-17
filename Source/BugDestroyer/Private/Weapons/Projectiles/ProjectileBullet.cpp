@@ -7,7 +7,9 @@
 #include "GameplayTagAssetInterface.h"
 #include "Character/BugCharacter.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Weapons/Weapon.h"
 
 
 // Sets default values
@@ -40,7 +42,7 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 		}
 	}
 	if (HasAuthority())
-	{
+	{	// server
 		if (!bFakeProjectile)
 		{
 			ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
@@ -50,7 +52,22 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
             	UGameplayStatics::ApplyDamage(OtherActor, SelectedData->ImpactDamage, GetInstigatorController(), this, nullptr);
             }
 		}
-		
+	}else if (bUseServerSideRewind)
+	{	// Only Instigator生成fake projectile
+		if (bFakeProjectile)
+		{
+			AWeapon* DamageCauser = Cast<AWeapon>(GetOwner());
+			ABugCharacter* HitCharacter = Cast<ABugCharacter>(OtherActor);
+			if (DamageCauser && HitCharacter)
+			{
+				ServerProjectileHitRequest(HitCharacter, 
+					InitialSpawnLocation, 
+					ProjectileMovementComponent->Velocity,
+					GetWorld()->GetTimeSeconds(), 
+					DamageCauser
+					);
+			}
+		}
 	}
 	Super::OnHit(HitComponent, OtherActor, OtherComponent, NormalImpulse, Hit);
 }

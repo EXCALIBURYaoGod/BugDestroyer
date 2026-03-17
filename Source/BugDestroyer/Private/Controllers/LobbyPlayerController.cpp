@@ -4,6 +4,8 @@
 #include "Controllers/LobbyPlayerController.h"
 
 #include "GameMode/LobbyGameMode.h"
+#include "Subsystems/BugUISubsystem.h"
+#include "Widget/Widget_PrimaryLayout.h"
 
 void ALobbyPlayerController::RequestStartGameToUI()
 {
@@ -15,9 +17,23 @@ void ALobbyPlayerController::BeginPlay()
 	Super::BeginPlay();
 }
 
+void ALobbyPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UBugUISubsystem* BugUISubsystem = UBugUISubsystem::Get(this))
+	{
+		if (UWidget_PrimaryLayout* Layout = BugUISubsystem->GetCreatedPrimaryLayout())
+		{
+			Layout->RemoveFromParent();
+			BugUISubsystem->UnRegisterCreatedPrimaryLayoutWidget(Layout);
+		}
+	}
+	Super::EndPlay(EndPlayReason);
+	
+}
+
 void ALobbyPlayerController::RPC_RequestStartGame_Implementation()
 {	
-	// 此时代码在服务器运行
+
  	if (ALobbyGameMode* GM = GetWorld()->GetAuthGameMode<ALobbyGameMode>())
  	{
  		GM->ServerStartGame();

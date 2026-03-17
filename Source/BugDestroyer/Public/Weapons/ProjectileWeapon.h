@@ -22,7 +22,7 @@ public:
 	
 	// begin AWeapon Interface
 	virtual void ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSeed) override;
-	void SpawnFakeProjectile(const FVector& HitTarget);
+	void SpawnFakeProjectile(const FVector& HitTarget, int32 InRandomSeed);
 	virtual void SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed) override;
 	// end AWeapon Interface
 	

@@ -27,7 +27,8 @@ public:
 	
 protected:
 	void ShouldUseAimOffsetsForRun();
-	
+	void RotateRightHandToAim(float DeltaSeconds, AWeapon* EquippedWeapon);
+
 private:
 	UPROPERTY(BlueprintReadOnly, Category= "Character", meta=(AllowPrivateAccess=true))
 	ABugCharacter* Character;

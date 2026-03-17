@@ -17,7 +17,7 @@ namespace BugGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_MainMenuScreen, "Bug.Widget.MainMenuScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_ConfirmScreen, "Bug.Widget.ConfirmScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_StoryScreen, "Bug.Widget.StoryScreen");
-	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_Options, "Bug.Widget.OptionsScreen");
+	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_OptionsScreen, "Bug.Widget.OptionsScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_KeyRemapScreen, "Bug.Widget.KeyRemapScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_CreditScreen, "Bug.Widget.CreditScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_MultiplayerScreen, "Bug.Widget.MultiplayerScreen");
@@ -27,7 +27,7 @@ namespace BugGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_MatchBeforeStartScreen, "Bug.Widget.MatchBeforeStartScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_MatchCooldownScreen, "Bug.Widget.MatchCooldownScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_SniperScopeScreen, "Bug.Widget.SniperScopeScreen");
-	
+	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_GameMenuScreen, "Bug.Widget.GameMenuScreen");
 	// Widgets Tags
 	
 	// Soft Options image Tags

@@ -176,3 +176,13 @@ UWidget_ActivatableBase* UBugUISubsystem::PushSoftWidgetToStack(const FGameplayT
 	return PushWidgetToStack(InWidgetStackTag, LoadedClass);
 }
 
+UWidget_PrimaryLayout* UBugUISubsystem::GetCreatedPrimaryLayout() const
+{
+
+	if (IsValid(CreatedPrimaryLayout))
+	{
+		return CreatedPrimaryLayout;
+	}
+	return nullptr;
+}
+

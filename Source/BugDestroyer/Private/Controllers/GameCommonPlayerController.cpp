@@ -5,13 +5,18 @@
 
 #include "BugGameplayTags.h"
 #include "BugUIFunctionLibrary.h"
+#include "DebugHelper.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 
 #include "Blueprint/UserWidget.h"
 #include "Character/BugCharacter.h"
 #include "GameFramework/GameMode.h"
 #include "GameFramework/GameState.h"
+#include "GameFramework/PlayerState.h"
 #include "GameMode/CommonGameMode.h"
 #include "Subsystems/BugUISubsystem.h"
+#include "Weapons/Weapon.h"
 #include "Widget/Widget_MatchCooldownScreen.h"
 #include "Widget/Widget_PrimaryLayout.h"
 
@@ -25,15 +30,6 @@ void AGameCommonPlayerController::ClientSetMatchState_Implementation(FName NewSt
 	
 	if (IsLocalPlayerController())
 	{
-		UBugUISubsystem* BugUISubsystem = UBugUISubsystem::Get(this);
-		if (BugUISubsystem)
-		{
-			UUserWidget* PrimaryLayout = BugUISubsystem->GetCreatedPrimaryLayout();
-			if (!PrimaryLayout)
-			{
-				CreatePrimaryLayout();
-			}
-		}
         
         if (MatchState == MatchState::WaitingToStart)
         {
@@ -41,7 +37,10 @@ void AGameCommonPlayerController::ClientSetMatchState_Implementation(FName NewSt
         }
         else if (MatchState == MatchState::InProgress)
         {
-        	
+        	if (!bCharacterScreenPushed && GetPawn())
+        	{
+        		PushCharacterScreen(GetPawn());
+        	}
         }
         else if (MatchState == MatchState::Cooldown)
         {
@@ -84,6 +83,17 @@ void AGameCommonPlayerController::ShowSniperScopeWidget(bool bIsShow)
 	}
 }
 
+void AGameCommonPlayerController::BeginPlay()
+{
+	Super::BeginPlay();
+	bCharacterScreenPushed = false;
+	GetWorldTimerManager().SetTimer(TimeSyncTimer, this, &ThisClass::CheckTimeSync, 0.5f, true);
+	if (IsLocalPlayerController())
+	{
+		GetWorldTimerManager().SetTimer(NetStatTimerHandle, this, &ThisClass::UpdateNetworkStats, 1.0f, true);
+	}
+}
+
 void AGameCommonPlayerController::OnPossess(APawn* aPawn)
 {
 	Super::OnPossess(aPawn);
@@ -107,13 +117,17 @@ void AGameCommonPlayerController::AcknowledgePossession(APawn* aPawn)
 void AGameCommonPlayerController::ReceivedPlayer()
 {
 	Super::ReceivedPlayer();
-	GetWorldTimerManager().SetTimerForNextTick([this]()
+	if (IsLocalPlayerController())
 	{
-		if (AGameState* GS = GetWorld()->GetGameState<AGameState>())
+		CreatePrimaryLayout();
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
-			ClientSetMatchState_Implementation(GS->GetMatchState());
+			if (DefaultMappingContext)
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
 		}
-	});
+	}
 }
 
 void AGameCommonPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -133,27 +147,15 @@ void AGameCommonPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReas
 void AGameCommonPlayerController::InitUIWithCharacter(APawn* InPawn)
 {
 
-	UBugUISubsystem* BugUISubsystem = UBugUISubsystem::Get(this);
-	UWidget_PrimaryLayout* Layout = BugUISubsystem->GetCreatedPrimaryLayout();
-    
-	if (Layout)
-	{
-		if (IsLocalPlayerController())
-		{
-            if (!bCharacterScreenPushed)
-            {
-            	PushCharacterScreen(InPawn);
-            }
-			
-		}
+	if (!IsLocalPlayerController()) return;
 
-	}
-	else
+	UBugUISubsystem* BugUISubsystem = UBugUISubsystem::Get(this);
+	if (!BugUISubsystem) return;
+	
+	if (MatchState == MatchState::InProgress) 
 	{
-		ABugCharacter* BugCharacter = Cast<ABugCharacter>(InPawn);
-		if (BugCharacter)
+		if (BugUISubsystem->GetCreatedPrimaryLayout() && !bCharacterScreenPushed)
 		{
-			CreatePrimaryLayout();
 			PushCharacterScreen(InPawn);
 		}
 	}
@@ -229,3 +231,100 @@ void AGameCommonPlayerController::HandleMatchCooldownState()
 
 }
 
+void AGameCommonPlayerController::CheckTimeSync()
+{
+	ServerRequestServerTime(GetWorld()->GetTimeSeconds());
+	if (SyncCount > 5)
+	{
+		GetWorldTimerManager().SetTimer(TimeSyncTimer, this, &ThisClass::CheckTimeSync, 10.0f, true);
+	}
+	SyncCount++;
+}
+
+void AGameCommonPlayerController::ClientReportServerTime_Implementation(float ClientRequestTime,
+                                                                        float TimeServerReceived)
+{
+	float RoundTripTime = GetWorld()->GetTimeSeconds() - ClientRequestTime;
+	float CurrentServerTime = TimeServerReceived + (0.5f * RoundTripTime);
+	ClientServerDelta = CurrentServerTime - GetWorld()->GetTimeSeconds();
+}
+
+void AGameCommonPlayerController::ServerRequestServerTime_Implementation(float ClientRequestTime)
+{
+	ClientReportServerTime(ClientRequestTime, GetWorld()->GetTimeSeconds());
+}
+
+void AGameCommonPlayerController::UpdateNetworkStats()
+{
+	if (APlayerState* PS = PlayerState) 
+	{
+		CurrentPing = PS->GetPingInMilliseconds(); 
+	}
+	
+	if (UNetDriver* NetDriver = GetWorld()->GetNetDriver())
+	{
+		UNetConnection* NetConn = NetDriver->ServerConnection; 
+		
+		if (NetConn)
+		{
+			float InLoss = NetConn->GetInLossPercentage().GetAvgLossPercentage();
+			float OutLoss = NetConn->GetOutLossPercentage().GetAvgLossPercentage();
+    
+			PacketLossPercentage = FMath::Max(InLoss, OutLoss);
+		}
+	}
+	
+	bool bShouldWarn = (CurrentPing > 200.f || PacketLossPercentage > 5.f);
+	if (bShouldWarn)
+	{
+		
+	}
+	if (bLastNetWarning != bShouldWarn)
+	{
+		bLastNetWarning = bShouldWarn;
+		if (ABugCharacter* BugChar = Cast<ABugCharacter>(GetPawn()))
+		{
+			BugChar->OnNetWarning.Broadcast(bShouldWarn);
+			ServerSetWeaponSSR(bShouldWarn);
+		}
+	}
+}
+
+void AGameCommonPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
+	{
+		if (ToggleMenuAction)
+		{
+			EnhancedInputComponent->BindAction(ToggleMenuAction, ETriggerEvent::Started, this, &ThisClass::ToggleGameMenu);
+		}
+	}
+	
+}
+
+void AGameCommonPlayerController::ToggleGameMenu()
+{
+	if (UBugUISubsystem* BugUISubsystem = UBugUISubsystem::Get(this))
+	{
+		BugUISubsystem->PushSoftWidgetToStackAsync(
+			BugGameplayTags::Bug_WidgetStack_GameMenu,
+			UBugUIFunctionLibrary::GetSoftWidgetClassByTag(BugGameplayTags::Bug_Widget_GameMenuScreen)
+		);
+	}
+}
+
+void AGameCommonPlayerController::ServerSetWeaponSSR_Implementation(bool bEnableSSR)
+{
+	if (ABugCharacter* BugCharacter = Cast<ABugCharacter>(GetPawn()))
+	{
+		if (AWeapon* EquippedWeapon = BugCharacter->GetEquippedWeapon())
+		{
+			if (EquippedWeapon->bDefaultUseSSR)
+			{
+				EquippedWeapon->SetServerSideRewind(bEnableSSR);
+			}
+		}
+		
+	}
+}

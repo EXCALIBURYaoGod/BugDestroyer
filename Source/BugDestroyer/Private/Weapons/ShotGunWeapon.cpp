@@ -102,6 +102,13 @@ void AShotGunWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed
 				{
 					SpawnImpactEffect(Pellet.HitPoint, Pellet.HitNormal, Pellet.HitActor.Get());
 					SpawnBeamFX(Pellet.TraceEnd);
+					if (bUseServerSideRewind)
+					{
+						if (ABugCharacter* HitCharacter = Cast<ABugCharacter>(Pellet.HitActor.Get()))
+						{
+							ServerHitRequest(HitCharacter, GetMuzzleSocketLocation(), Pellet.HitPoint, GetWorld()->GetTimeSeconds(), this);
+						}
+					}
 				}
 			}
 		}

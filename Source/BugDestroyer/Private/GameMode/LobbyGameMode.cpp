@@ -41,9 +41,6 @@ void ALobbyGameMode::ServerStartGame()
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		
-		// 关键：ServerTravel 带着所有客户端一起飞
-		// ?listen 确保进入新地图后，这里依然是服务器
-		World->ServerTravel("/Game/Maps/GameMap?listen");
+		World->ServerTravel("/Game/Maps/TeamDeathMatch?listen");
 	}
 }

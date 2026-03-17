@@ -21,6 +21,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	
 	// 实际发送给服务器的 RPC
 	UFUNCTION(Server, Reliable)

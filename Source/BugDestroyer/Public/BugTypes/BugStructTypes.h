@@ -106,3 +106,20 @@ struct FImpactEffectData
 	{
 	}
 };
+
+USTRUCT(BlueprintType)
+struct FServerSideRewindResult
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadOnly)
+	bool bHitConfirmed = false;
+	UPROPERTY(BlueprintReadOnly)
+	bool bHeadShot = false;
+	UPROPERTY(BlueprintReadOnly)
+	bool bBodyShot = false;
+	UPROPERTY(BlueprintReadOnly)
+	bool bLimbShot = false;
+	
+	
+};

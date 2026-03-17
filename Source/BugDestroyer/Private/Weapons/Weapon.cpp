@@ -2,7 +2,6 @@
 
 #include "Weapons/Weapon.h"
 
-#include "DebugHelper.h"
 #include "BugDestroyer/BugDestroyer.h"
 #include "Character/BugCharacter.h"
 #include "Components/SphereComponent.h"
@@ -61,12 +60,15 @@ void AWeapon::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
+
 void AWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	
 	DOREPLIFETIME(AWeapon, WeaponState);
 	DOREPLIFETIME(AWeapon, CurrentAmmo);
+	DOREPLIFETIME_CONDITION(AWeapon, bUseServerSideRewind, COND_OwnerOnly);
+	
 }
 
 void AWeapon::SetOwner(AActor* NewOwner)
@@ -110,6 +112,17 @@ void AWeapon::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActo
 		}
 	}
 	
+}
+
+FVector AWeapon::TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget, int32 InRandomSeed)
+{
+	FRandomStream WeaponStream(InRandomSeed);
+	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
+	FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
+	FVector RandVector = WeaponStream.GetUnitVector() * WeaponStream.FRandRange(0.f, FireSphereRadius);
+	FVector EndLoc = SphereCenter + RandVector;
+	FVector ToEndLoc = EndLoc - TraceStart;
+	return TraceStart + ToEndLoc.GetSafeNormal() * 80000.f;
 }
 
 void AWeapon::OnRep_WeaponState()
@@ -241,9 +254,9 @@ void AWeapon::ClientSpendRoundAmmo()
 	{
 		int32 UnconfirmedShots = FMath::Max(0, LocalFiredShots - ServerAuthShots);
 		int32 AmmoLeft = CachedOwningBugCharacterForEquip->GetAmmoLeft();
-		int32 OutCurrentAmmo = CurrentAmmo;
-		OutCurrentAmmo = FMath::Max(0, OutCurrentAmmo - UnconfirmedShots);
-		OnAmmoChanged.Broadcast(OutCurrentAmmo, MagCapacity, AmmoLeft);
+		ClientCurrentAmmo = CurrentAmmo;
+		ClientCurrentAmmo = FMath::Max(0, ClientCurrentAmmo - UnconfirmedShots);
+		OnAmmoChanged.Broadcast(ClientCurrentAmmo, MagCapacity, AmmoLeft);
 	}
 }
 
@@ -333,6 +346,7 @@ void AWeapon::ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSee
 {
 	ServerSpendRoundAmmo();
 }
+
 
 const FImpactEffectData* AWeapon::GetHitImpactDataByHitActorOwnTag(AActor* HitActor)
 {

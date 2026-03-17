@@ -31,18 +31,12 @@ void UWidget_OptionsScreen::NativeOnInitialized()
 			FSimpleDelegate::CreateUObject(this, &ThisClass::OnResetBoundActionTriggerred))
 			);
 	}
-	
-	BackActionHandle = RegisterUIActionBinding(
-		FBindUIActionArgs(
-			ICommonInputModule::GetSettings().GetDefaultBackAction(),
-			true,
-			FSimpleDelegate::CreateUObject(this, &ThisClass::OnBackBoundActionTriggerred))
-		);
 
 	TabListWidget_OptionsTabs->OnTabSelected.AddUniqueDynamic(this, &ThisClass::OnOptionsTabSelected);
 	
 	CommonListView_OptionsListView->OnItemIsHoveredChanged().AddUObject(this, &ThisClass::OnListViewItemHovered);
 	CommonListView_OptionsListView->OnItemSelectionChanged().AddUObject(this, &ThisClass::OnListViewItemSelected);
+	
 }
 
 void UWidget_OptionsScreen::NativeOnDeactivated()
@@ -147,11 +141,6 @@ void UWidget_OptionsScreen::OnResetBoundActionTriggerred()
 			}
 		);
 	
-}
-
-void UWidget_OptionsScreen::OnBackBoundActionTriggerred()
-{
-	DeactivateWidget();
 }
 
 void UWidget_OptionsScreen::OnOptionsTabSelected(FName TabID)

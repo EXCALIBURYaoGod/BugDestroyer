@@ -71,7 +71,7 @@ private:
 	UWidget_PrimaryLayout* CreatedPrimaryLayout;
 	
 public:
-	FORCEINLINE UWidget_PrimaryLayout* GetCreatedPrimaryLayout() const { return CreatedPrimaryLayout; }
+	UWidget_PrimaryLayout* GetCreatedPrimaryLayout() const;
 	
 	
 };

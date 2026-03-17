@@ -4,9 +4,9 @@
 #include "Weapons/HitScanWeapon.h"
 
 #include "Character/BugCharacter.h"
+#include "Components/LagCompensationComponent.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "Particles/ParticleSystemComponent.h"
 
 
@@ -32,20 +32,23 @@ void AHitScanWeapon::Multicast_SpawnImpactFX_Implementation(const FVector& Point
 void AHitScanWeapon::ServerExecuteFireLogic(const FVector& HitTarget, int32 InRandomSeed)
 {
 	Super::ServerExecuteFireLogic(HitTarget, InRandomSeed);
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	if (!OwnerPawn) return;
 	
-	FHitResult TraceHit;
-	FVector TraceEnd = PerformHitScanTrace(OwnerPawn, HitTarget, TraceHit, InRandomSeed);
+		APawn* OwnerPawn = Cast<APawn>(GetOwner());
+		if (!OwnerPawn) return;
 	
-	if (TraceHit.bBlockingHit)
-	{
-		// === 纯逻辑：造成伤害 ===
-		ApplyDamageByTag(OwnerPawn, TraceHit);
-		Multicast_SpawnImpactFX(TraceHit.ImpactPoint, TraceHit.ImpactNormal, TraceHit.GetActor());
-	}
+		FHitResult TraceHit;
+		FVector TraceEnd = PerformHitScanTrace(OwnerPawn, HitTarget, TraceHit, InRandomSeed);
+
+		if (TraceHit.bBlockingHit)
+		{
+			// === 纯逻辑：造成伤害 ===
+			ApplyDamageByTag(OwnerPawn, TraceHit);
+			Multicast_SpawnImpactFX(TraceHit.ImpactPoint, TraceHit.ImpactNormal, TraceHit.GetActor());
+		}
+		Multicast_SpawnBeamFX(TraceEnd);
+		
 	
-	Multicast_SpawnBeamFX(TraceEnd);
+	
 }
 
 void AHitScanWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed)
@@ -82,37 +85,69 @@ void AHitScanWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed
 			if (PredictionHit.bBlockingHit)
 			{
 				SpawnImpactEffect(PredictionHit.ImpactPoint, PredictionHit.ImpactNormal, PredictionHit.GetActor());
+				if (bUseServerSideRewind)
+				{
+					if (ABugCharacter* HitCharacter = Cast<ABugCharacter>(PredictionHit.GetActor()))
+                    {
+						ServerHitRequest(HitCharacter, GetMuzzleSocketLocation(), PredictionHit.ImpactPoint, GetWorld()->GetTimeSeconds(), this);
+                    }
+				}
 			}
 		}
 	}
-	
-	
 }
 
-FVector AHitScanWeapon::PerformHitScanTrace(const APawn* OwnerPawn, const FVector& HitTarget, FHitResult& TraceHit, int32 InRandomSeed)
+void AHitScanWeapon::ServerHitRequest_Implementation(ABugCharacter* HitCharacter, const FVector_NetQuantize& TraceStart,
+	const FVector_NetQuantize& HitLocation, float HitTime, class AWeapon* DamageCauser)
 {
-	FVector LineTraceEnd = FVector::ZeroVector;
+	if (ULagCompensationComponent* LagCompensationComponent = CachedOwningBugCharacterForEquip->GetLagCompensationComponent())
+	{
+		FServerSideRewindResult ServerSideRewindResult = LagCompensationComponent->ServerSideRewind_LineTrace(HitCharacter, TraceStart, HitLocation, HitTime);
+		if (HitCharacter && ServerSideRewindResult.bHitConfirmed)
+		{
+			float Damage = DamageCauser->GetHitImpactDataByHitActorOwnTag(HitCharacter)->ImpactDamage;
+			UGameplayStatics::ApplyDamage(
+				HitCharacter,
+				Damage,
+				CachedOwningBugCharacterForEquip->GetController(),
+				DamageCauser,
+				UDamageType::StaticClass()
+			);
+		}
+	}
+}
+
+FVector AHitScanWeapon::GetMuzzleSocketLocation()
+{
 	const USkeletalMeshSocket* MuzzleSocket = GetWeaponMesh()->GetSocketByName("Muzzle");
 	if (MuzzleSocket)
 	{
 		FTransform SocketTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
 		FVector MuzzleSocketLocation = SocketTransform.GetLocation();
-		LineTraceEnd = bUseScatter? 
-		TraceEndWithScatter(MuzzleSocketLocation, HitTarget, InRandomSeed) : MuzzleSocketLocation + (HitTarget - MuzzleSocketLocation) * 1.25f;
-		UWorld* World = GetWorld();
-		if (World)
-		{
-			FCollisionQueryParams QueryParams;
-			QueryParams.AddIgnoredActor(this); 
-			QueryParams.AddIgnoredActor(OwnerPawn);
-			World->LineTraceSingleByChannel(
-				TraceHit,
-				MuzzleSocketLocation,
-				LineTraceEnd,
-				ECC_Visibility,
-				QueryParams
-			);
-		}
+		return MuzzleSocketLocation;
+	}
+	return FVector::ZeroVector;
+}
+
+FVector AHitScanWeapon::PerformHitScanTrace(const APawn* OwnerPawn, const FVector& HitTarget, FHitResult& TraceHit, int32 InRandomSeed)
+{
+	FVector LineTraceEnd = FVector::ZeroVector;
+	FVector MuzzleSocketLocation = GetMuzzleSocketLocation();
+	LineTraceEnd = bUseScatter? 
+	TraceEndWithScatter(MuzzleSocketLocation, HitTarget, InRandomSeed) : MuzzleSocketLocation + (HitTarget - MuzzleSocketLocation) * 1.25f;
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(this); 
+		QueryParams.AddIgnoredActor(OwnerPawn);
+		World->LineTraceSingleByChannel(
+			TraceHit,
+			MuzzleSocketLocation,
+			LineTraceEnd,
+			ECC_Visibility,
+			QueryParams
+		);
 	}
 	if (TraceHit.bBlockingHit)
 	{
@@ -124,6 +159,7 @@ FVector AHitScanWeapon::PerformHitScanTrace(const APawn* OwnerPawn, const FVecto
 
 void AHitScanWeapon::ApplyDamageByTag(APawn* OwnerPawn, FHitResult TraceHit)
 {
+	if (bUseServerSideRewind) return;
 	const FImpactEffectData* SelectedData = GetHitImpactDataByHitActorOwnTag(TraceHit.GetActor());
 	ABugCharacter* BugCharacter = Cast<ABugCharacter>(TraceHit.GetActor());
 	if (BugCharacter)
@@ -199,17 +235,6 @@ void AHitScanWeapon::Multicast_SpawnBeamFX_Implementation(const FVector& TraceEn
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (OwnerPawn && OwnerPawn->IsLocallyControlled()) return;
 	SpawnBeamFX(TraceEnd);
-}
-
-FVector AHitScanWeapon::TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget, int32 InRandomSeed)
-{
-	FRandomStream WeaponStream(InRandomSeed);
-	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
-	FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
-	FVector RandVector = WeaponStream.GetUnitVector() * WeaponStream.FRandRange(0.f, FireSphereRadius);
-	FVector EndLoc = SphereCenter + RandVector;
-	FVector ToEndLoc = EndLoc - TraceStart;
-	return TraceStart + ToEndLoc.GetSafeNormal() * 80000.f;
 }
 
 

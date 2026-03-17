@@ -28,13 +28,15 @@ protected:
 	virtual void SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed) override;
 	// end AWeapon Interface
 	
+	UFUNCTION(Server, Reliable)
+	void ServerHitRequest(ABugCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation, float HitTime, class AWeapon* DamageCauser);
 	void ApplyDamageByTag(APawn* OwnerPawn, FHitResult TraceHit);
+	FVector GetMuzzleSocketLocation();
 	FVector PerformHitScanTrace(const APawn* OwnerPawn, const FVector& HitTarget, FHitResult& TraceHit, int32 InRandomSeed);
 	UFUNCTION(NetMulticast, UnReliable)
 	void Multicast_SpawnImpactFX(const FVector& Point, const FVector& Normal, AActor* HitActor);
 	UFUNCTION(NetMulticast, UnReliable)
 	void Multicast_SpawnBeamFX(const FVector& TraceEnd);
-	FVector TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget, int32 InRandomSeed);
 	void SpawnBeamFX(const FVector& TraceEnd);
 	void SpawnImpactEffect(const FVector& Point, const FVector& Normal, AActor* HitActor);
 	
@@ -44,18 +46,10 @@ protected:
 	UParticleSystem* MuzzleFlash;
 	UPROPERTY(EditAnywhere, Category = "ScanEffects")
 	USoundBase* FireSound;
+
 	
 private:
-	
-	// trace end with scatter
-	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	float DistanceToSphere = 800.f;
-	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	float FireSphereRadius = 75.f;
-	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	float DefaultFireSphereRadius = 75.f;
-	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	bool bUseScatter = false;
+
 	
 public:
 	FORCEINLINE float GetImpactDamageFromTag(FGameplayTag Tag) const { return TaggedImpactEffects.Contains(Tag) ? TaggedImpactEffects[Tag].ImpactDamage : 0.f; }

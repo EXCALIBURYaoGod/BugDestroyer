@@ -8,6 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "Projectile.generated.h"
 
+class ABugCharacter;
 class UProjectileMovementComponent;
 class UBoxComponent;
 
@@ -40,6 +41,19 @@ protected:
 	UProjectileMovementComponent* ProjectileMovementComponent;
 	UPROPERTY(EditAnywhere, Category = "ImpactEffects")
 	bool bFakeProjectile;
+	UPROPERTY(EditAnywhere, Category = "Speed")
+	float ProjectileInitSpeed;
+	UPROPERTY(EditAnywhere, Category = "Speed")
+	float ProjectileMaxSpeed;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SSR")
+	FVector InitialSpawnLocation;
+	UFUNCTION(Server, Reliable)
+	void ServerProjectileHitRequest(ABugCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& InitialVelocity, float HitTime, class AWeapon* DamageCauser);
+	
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 	
 private:
 	UPROPERTY(VisibleAnywhere)
@@ -53,5 +67,8 @@ private:
 	
 public:
 	FORCEINLINE float GetImpactDamageFromTag(FGameplayTag Tag) const { return TaggedImpactEffects.Contains(Tag) ? TaggedImpactEffects[Tag].ImpactDamage : 0.f; }
+	FORCEINLINE void SetInitialSpawnLocation(const FVector& SpawnLocation) { InitialSpawnLocation = SpawnLocation; }
+	UPROPERTY(EditAnywhere, Category = "ServerSideRewind")
+	bool bUseServerSideRewind;
 	
 };

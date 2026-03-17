@@ -34,10 +34,11 @@ void AProjectileWeapon::ServerExecuteFireLogic(const FVector& HitTarget, int32 I
 	if (MuzzleSocket && ProjectileClass)
 	{
 		FTransform MuzzleTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
-		FVector ToTarget = HitTarget - MuzzleTransform.GetLocation();
+		FVector TraceEnd = bUseScatter ? TraceEndWithScatter(MuzzleTransform.GetLocation(), HitTarget, InRandomSeed) : HitTarget;
+		FVector ToTarget = TraceEnd - MuzzleTransform.GetLocation();
 		FRotator TargetRot = ToTarget.Rotation();
 		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = GetOwner();
+		SpawnParams.Owner = this;
 		SpawnParams.Instigator = InstigatorPawn;
         
 		// 纯逻辑：服务端生成物理抛射体。
@@ -50,9 +51,14 @@ void AProjectileWeapon::ServerExecuteFireLogic(const FVector& HitTarget, int32 I
 	}
 }
 
-void AProjectileWeapon::SpawnFakeProjectile(const FVector& HitTarget)
+void AProjectileWeapon::SpawnFakeProjectile(const FVector& HitTarget, int32 InRandomSeed)
 {
-	if (HasAuthority()) return;
+	APawn* OwningPawn = Cast<APawn>(GetOwner());
+	// 拦截条件：如果是服务器 || 拥有者为空 || 拥有者不是本地控制的（即模拟代理）
+	if (HasAuthority() || OwningPawn == nullptr || !OwningPawn->IsLocallyControlled()) 
+	{
+		return; 
+	}
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (OwnerPawn && !OwnerPawn->IsLocallyControlled())
 	{
@@ -63,14 +69,17 @@ void AProjectileWeapon::SpawnFakeProjectile(const FVector& HitTarget)
 	if (MuzzleSocket)
 	{
 		FTransform MuzzleTransform = MuzzleSocket->GetSocketTransform(GetWeaponMesh());
-		FVector ToTarget = HitTarget - MuzzleTransform.GetLocation();
+		FVector TraceEnd = bUseScatter ? TraceEndWithScatter(MuzzleTransform.GetLocation(), HitTarget, InRandomSeed) : HitTarget;
+		FVector ToTarget = TraceEnd - MuzzleTransform.GetLocation();
 		FRotator TargetRot = ToTarget.Rotation();
 		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = GetOwner();
+		SpawnParams.Owner = this;
 		SpawnParams.Instigator = InstigatorPawn;
 		if (FakeProjectileClass)
 		{
-			 GetWorld()->SpawnActor<AProjectile>(FakeProjectileClass, MuzzleTransform.GetLocation(), TargetRot);
+			AProjectile* FakeProjectile = GetWorld()->SpawnActor<AProjectile>(FakeProjectileClass, MuzzleTransform.GetLocation(), TargetRot, SpawnParams);
+			FakeProjectile->SetInitialSpawnLocation(MuzzleTransform.GetLocation()); //初始化位置以用于SSR
+			FakeProjectile->bUseServerSideRewind = bUseServerSideRewind;
 		}
 	}
 }
@@ -78,7 +87,7 @@ void AProjectileWeapon::SpawnFakeProjectile(const FVector& HitTarget)
 void AProjectileWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed)
 {
 	Super::SimulateFireFX(HitTarget, InRandomSeed);
-	SpawnFakeProjectile(HitTarget);
+	SpawnFakeProjectile(HitTarget, InRandomSeed);
 	
 }
 

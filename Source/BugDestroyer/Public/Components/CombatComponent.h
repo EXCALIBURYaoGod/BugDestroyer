@@ -32,10 +32,8 @@ class BUGDESTROYER_API UCombatComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	/** Constructor */
 	UCombatComponent();
 	
-	/** Friend class declaration for ABugCharacter to access private members */
 	friend class ABugCharacter;
 	
 	// Begin UActorComponent Interface
@@ -43,19 +41,11 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 	// End UActorComponent Interface
 	
-	/** Equip a weapon (server only) */
 	void EquipWeapon(AWeapon* WeaponToEquip);
-	
-	/** Reload the equipped weapon (server only) */
 	void Reload();
-	
-	/** Handle ammo reloading logic (server only) */
 	void HandleReloadAmmo();
-	
-	/** Pick up ammo for a specific weapon type (server only) */
 	void PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount);
 
-	
 protected:
 	virtual void BeginPlay() override;
 	void PushCrosshair(float DeltaTime);
@@ -69,6 +59,7 @@ protected:
 	void Fire();
 	void ExecuteFire(bool InIsFire);
 	void LocalPlayFireFX(const FVector& InHitTarget, int32 InRandomSeed);
+	
 	void TossGrenade();
 	void LaunchGrenade();
 	void ShowAttachedGrenade(bool bShowGrenade);
@@ -83,8 +74,8 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void RPC_Reload();
 	void ReloadLocal();
-	UFUNCTION(Server, Reliable)
-	void RPC_ReloadAnimationFinished();
+	void ServerHandleReloadFinished();
+	FTimerHandle ReloadTimerHandle;
 	
 	void OnReloadAnimationFinished();	// Called when reload animation finishes
 	void OnEquipAnimationFinished();
@@ -166,5 +157,7 @@ private:
 public:
 	UPROPERTY(Replicated)
 	FVector_NetQuantize HitTarget;
+	UPROPERTY(VisibleAnywhere)
+	FVector LocalHitTarget;
 	
 };

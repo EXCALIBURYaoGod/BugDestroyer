@@ -8,12 +8,13 @@
 #include "EnhancedInputComponent.h"
 #include "BugDestroyer/BugDestroyer.h"
 #include "Camera/CameraComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/BuffComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/CombatComponent.h"
+#include "Components/LagCompensationComponent.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/PlayerState.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameMode/CommonGameMode.h"
 #include "Kismet/GameplayStatics.h"
@@ -45,6 +46,9 @@ ABugCharacter::ABugCharacter()
 	BuffComponent = CreateDefaultSubobject<UBuffComponent>(TEXT("BuffComponent"));
 	BuffComponent->SetIsReplicated(true);
 	
+	LagCompensationComponent = CreateDefaultSubobject<ULagCompensationComponent>(TEXT("LagCompensationComponent"));
+	LagCompensationComponent->SetIsReplicated(true);
+	
 	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 	GetMesh()->SetCollisionObjectType(ECC_SKM);
@@ -63,8 +67,42 @@ ABugCharacter::ABugCharacter()
 	AttachedGrenadeMesh->SetupAttachment(GetMesh(), FName("GrenadeSocket"));
 	AttachedGrenadeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	
+	InitHitBox(Head, TEXT("Head"), FName("head"));
+	InitHitBox(Pelvis, TEXT("Pelvis"), FName("pelvis"));
+	InitHitBox(Spine, TEXT("Spine"), FName("spine_02"));
+	InitHitBox(UpperArm_l, TEXT("UpperArm_l"), FName("upperarm_l"));
+	InitHitBox(UpperArm_r, TEXT("UpperArm_r"), FName("upperarm_r"));
+	InitHitBox(LowerArm_l, TEXT("LowerArm_l"), FName("lowerarm_l"));
+	InitHitBox(LowerArm_r, TEXT("LowerArm_r"), FName("lowerarm_r"));
+	InitHitBox(Thigh_l, TEXT("Thigh_l"), FName("thigh_l"));
+	InitHitBox(Thigh_r, TEXT("Thigh_r"), FName("thigh_r"));
+	InitHitBox(Calf_l, TEXT("Calf_l"), FName("calf_l"));
+	InitHitBox(Calf_r, TEXT("Calf_r"), FName("calf_r"));
+	InitHitBox(Foot_l, TEXT("Foot_l"), FName("foot_l"));
+	InitHitBox(Foot_r, TEXT("Foot_r"), FName("foot_r"));
+	
+	
+	
 }
 
+void ABugCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (CombatComponent)
+	{
+		CombatComponent->BugCharacter = this;
+	}
+	if (BuffComponent)
+	{
+		BuffComponent->BugCharacter = this;
+		BuffComponent->SetInitialSpeed(GetCharacterMovement()->MaxWalkSpeed, GetCharacterMovement()->MaxWalkSpeedCrouched);
+		BuffComponent->SetInitialJumpVelocity(GetCharacterMovement()->JumpZVelocity);
+	}
+	if (LagCompensationComponent)
+	{
+		LagCompensationComponent->BugCharacter = this;
+	}
+}
 
 void ABugCharacter::PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount)
 {
@@ -74,10 +112,20 @@ void ABugCharacter::PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount)
 	}
 }
 
+FVector ABugCharacter::CalculateLocalHitTarget()
+{
+	if (CombatComponent)
+	{
+		return CombatComponent->LocalHitTarget;
+	}
+	return GetActorLocation() + GetActorForwardVector() * 80000.f;
+}
+
 void ABugCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxWalkSpeed;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = DefaultMaxWalkSpeedCrouched;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 	
@@ -85,10 +133,6 @@ void ABugCharacter::BeginPlay()
 	if (AttachedGrenadeMesh)
 	{
 		AttachedGrenadeMesh->SetVisibility(false);
-	}
-	if (IsLocallyControlled())
-	{
-		GetWorldTimerManager().SetTimer(NetStatTimerHandle, this, &ThisClass::UpdateNetworkStats, 1.0f, true);
 	}
 	
 }
@@ -153,27 +197,29 @@ void ABugCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void ABugCharacter::PlayEquipFX()
+{
+	PlayEquipMontage(OverlappingWeapon);
+	if (OverlappingWeapon->GetEquipSound())
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			OverlappingWeapon->GetEquipSound(),
+			GetActorLocation()
+		);
+	}
+}
+
 void ABugCharacter::EquipButtonPressed()
 {
 	if (CombatComponent && OverlappingWeapon)
 	{
-		if (HasAuthority())
+		if (OverlappingWeapon->GetWeaponType() == EWeaponType::EWT_RocketLauncher)
 		{
-			CombatComponent->EquipWeapon(OverlappingWeapon);
-			
+			StopSprint();
 		}
-		else
-		{
-			RPC_ServerEquipButtonPressed();
-			if (OverlappingWeapon->GetEquipSound())
-			{
-				UGameplayStatics::PlaySoundAtLocation(
-					this,
-					OverlappingWeapon->GetEquipSound(),
-					GetActorLocation()
-				);
-			}
-		}
+		PlayEquipFX();
+		RPC_ServerEquipButtonPressed();
 	}
 }
 
@@ -213,6 +259,10 @@ void ABugCharacter::StopAiming()
 void ABugCharacter::StartSprint()
 {
 	bSprintButtonPressed = true;
+	if (GetEquippedWeapon())
+	{
+		if (GetEquippedWeapon()->GetWeaponType() == EWeaponType::EWT_RocketLauncher) return;
+	}
 	if (HasAuthority())
 	{
 		SetMaxWalkSpeed(SprintMaxWalkSpeed);
@@ -226,6 +276,7 @@ void ABugCharacter::StartSprint()
 void ABugCharacter::StopSprint()
 {
 	bSprintButtonPressed = false;
+
 	if (BuffComponent)
 	{
 		if (BuffComponent->bSpeedBuffing) return;
@@ -281,6 +332,13 @@ void ABugCharacter::SwapButtonPressed()
 {
 	if (CombatComponent)
 	{
+		if (CombatComponent->SecondaryWeapon)
+		{
+			if (CombatComponent->SecondaryWeapon->GetWeaponType() == EWeaponType::EWT_RocketLauncher)
+			{
+				StopSprint();
+			}
+		}
 		CombatComponent->SwapWeapons();
 	}
 }
@@ -514,36 +572,6 @@ void ABugCharacter::HideIfCameraClose(float DeltaTime)
 }
 
 
-void ABugCharacter::UpdateNetworkStats()
-{
-	if (APlayerState* PS = GetPlayerState())
-	{
-		CurrentPing = PS->GetPingInMilliseconds();
-	}
-	
-	if (UNetDriver* NetDriver = GetWorld()->GetNetDriver())
-	{
-		UNetConnection* NetConn = NetDriver->ServerConnection; 
-		
-		if (NetConn)
-		{
-			float InLoss = NetConn->GetInLossPercentage().GetAvgLossPercentage();
-			float OutLoss = NetConn->GetOutLossPercentage().GetAvgLossPercentage();
-    
-			PacketLossPercentage = FMath::Max(InLoss, OutLoss);
-		}
-	}
-	
-	bool bShouldWarn = (CurrentPing > 200.f || PacketLossPercentage > 5.f);
-	
-	if (bLastNetWarning != bShouldWarn)
-	{
-		bLastNetWarning = bShouldWarn;
-		OnNetWarning.Broadcast(bShouldWarn);
-	}
-	
-}
-
 void ABugCharacter::GetHit(const FVector& HitPoint)
 {
 	ProjectileImpactPoint = HitPoint;
@@ -623,16 +651,6 @@ AWeapon* ABugCharacter::GetEquippedWeapon() const
 
 void ABugCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-		{
-			if (DefaultMappingContext)
-			{
-				Subsystem->AddMappingContext(DefaultMappingContext, 0);
-			}
-		}
-	}
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		if (JumpAction)
@@ -693,22 +711,6 @@ void ABugCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		}
 	}
 }
-
-void ABugCharacter::PostInitializeComponents()
-{
-	Super::PostInitializeComponents();
-	if (CombatComponent)
-	{
-		CombatComponent->BugCharacter = this;
-	}
-	if (BuffComponent)
-	{
-		BuffComponent->BugCharacter = this;
-		BuffComponent->SetInitialSpeed(GetCharacterMovement()->MaxWalkSpeed, GetCharacterMovement()->MaxWalkSpeedCrouched);
-		BuffComponent->SetInitialJumpVelocity(GetCharacterMovement()->JumpZVelocity);
-	}
-}
-
 
 void ABugCharacter::EliminateCharacter()
 {
@@ -914,14 +916,14 @@ void ABugCharacter::PlayDeathMontage(const FVector& HitPoint)
 	}
 }
 
-void ABugCharacter::PlayEquipMontage()
+void ABugCharacter::PlayEquipMontage(AWeapon* WeaponToEquip)
 {
-	if (!CombatComponent || CombatComponent->PrimaryWeapon == nullptr) return;
+	if (!CombatComponent || WeaponToEquip == nullptr) return;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && EquipMontage)
 	{
 		FName SectionName;
-		switch (CombatComponent->PrimaryWeapon->GetWeaponType())
+		switch (WeaponToEquip->GetWeaponType())
 		{
 		case EWeaponType::EWT_AssaultRifle:
 			SectionName = FName("Rifle");
