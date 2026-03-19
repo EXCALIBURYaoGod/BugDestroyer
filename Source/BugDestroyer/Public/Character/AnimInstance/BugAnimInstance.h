@@ -68,6 +68,8 @@ private:
 	bool bUseAimOffsetsAnim = true;
 	UPROPERTY(BlueprintReadOnly, Category= "Character", meta=(AllowPrivateAccess=true))
 	bool bTossingGrenade = false;
+	UPROPERTY(BlueprintReadOnly, Category= "Character", meta=(AllowPrivateAccess=true))
+	bool bPlaySprintAnimation = false;
 	UPROPERTY(BlueprintReadOnly, Category= "CharacterMovement", meta=(AllowPrivateAccess=true))
 	FRotator RightHandRotation;
 	

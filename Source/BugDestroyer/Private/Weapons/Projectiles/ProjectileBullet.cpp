@@ -49,7 +49,26 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
             if (BugCharacter)
             {
             	BugCharacter->GetHit(Hit.ImpactPoint);
-            	UGameplayStatics::ApplyDamage(OtherActor, SelectedData->ImpactDamage, GetInstigatorController(), this, nullptr);
+            	bool bIsHeadshot = false;
+            	if (Hit.GetComponent() && Hit.GetComponent()->ComponentHasTag(FName("Head")))
+            	{
+            		bIsHeadshot = true;
+            	}
+            	float FinalDamage = SelectedData->ImpactDamage;
+            	if (bIsHeadshot)
+            	{
+            		FinalDamage *= 2.0f; 
+            	}
+            	FVector ShotDirection = ProjectileMovementComponent->Velocity.GetSafeNormal();
+            	UGameplayStatics::ApplyPointDamage(
+					BugCharacter,
+					FinalDamage,
+					ShotDirection,
+					Hit, //HitResult
+					GetInstigatorController(),
+					GetOwner(), //Weapon
+					UDamageType::StaticClass()
+				);
             }
 		}
 	}else if (bUseServerSideRewind)
@@ -58,6 +77,7 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 		{
 			AWeapon* DamageCauser = Cast<AWeapon>(GetOwner());
 			ABugCharacter* HitCharacter = Cast<ABugCharacter>(OtherActor);
+			HitCharacter->GetHit(Hit.ImpactPoint);
 			if (DamageCauser && HitCharacter)
 			{
 				ServerProjectileHitRequest(HitCharacter, 

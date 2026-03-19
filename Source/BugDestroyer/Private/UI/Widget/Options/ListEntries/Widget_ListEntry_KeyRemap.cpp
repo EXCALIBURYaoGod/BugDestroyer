@@ -5,7 +5,7 @@
 
 #include "BugGameplayTags.h"
 #include "BugUIFunctionLibrary.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 #include "Widget/Widget_KeyRemapScreen.h"
 #include "Widget/Components/BugCommonButtonBase.h"
 #include "Widget/Options/DataObjects/ListDataObject_KeyRemap.h"

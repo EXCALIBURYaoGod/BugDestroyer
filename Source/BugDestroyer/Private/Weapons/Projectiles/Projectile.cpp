@@ -20,12 +20,13 @@ AProjectile::AProjectile()
 	
 	CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
 	SetRootComponent(CollisionBox);
-	CollisionBox->SetCollisionObjectType(ECC_WorldDynamic);
+	CollisionBox->SetCollisionObjectType(ECC_Projectile);
 	CollisionBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
 	CollisionBox->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	CollisionBox->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
-	CollisionBox->SetCollisionResponseToChannel(ECC_SKM, ECR_Block);
+	CollisionBox->SetCollisionResponseToChannel(ECC_SKM, ECR_Ignore);
+	CollisionBox->SetCollisionResponseToChannel(ECC_HitBox, ECR_Block); // 改为仅对HitBox生效
 	
 	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComponent"));
 	ProjectileMovementComponent->bRotationFollowsVelocity = true;
@@ -156,20 +157,23 @@ void AProjectile::ServerProjectileHitRequest_Implementation(ABugCharacter* HitCh
 		if (ULagCompensationComponent* LagCompensationComponent = ProjectileInstigator->GetLagCompensationComponent())
 		{
 			FServerSideRewindResult ServerSideRewindResult = LagCompensationComponent->ServerSideRewind_Projectile(HitCharacter, TraceStart, InitialVelocity, HitTime);
-			if (HitCharacter && ServerSideRewindResult.bHitConfirmed)
+          
+			if (HitCharacter && ServerSideRewindResult.HitResult.bBlockingHit)
 			{
 				float Damage = DamageCauser->GetHitImpactDataByHitActorOwnTag(HitCharacter)->ImpactDamage;
-				UGameplayStatics::ApplyDamage(
-					HitCharacter,
-					Damage,
-					ProjectileInstigator->GetController(),
-					DamageCauser,
-					UDamageType::StaticClass()
+				FVector ShotDirection = InitialVelocity.GetSafeNormal();
+				UGameplayStatics::ApplyPointDamage(
+				   HitCharacter,
+				   Damage,
+				   ShotDirection,
+				   ServerSideRewindResult.HitResult, 
+				   ProjectileInstigator->GetController(),
+				   DamageCauser,
+				   UDamageType::StaticClass()
 				);
 			}
 		}
 	}
-	
 }
 
 

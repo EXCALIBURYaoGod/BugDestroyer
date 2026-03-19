@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 
 #include "BugGameplayTags.h"
 #include "BugUIFunctionLibrary.h"
@@ -157,12 +157,9 @@ void UBugUISubsystem::NotifyPawnResubscribed(APawn* NewPawn)
 UWidget_ActivatableBase* UBugUISubsystem::PushWidgetToStack(const FGameplayTag& InWidgetStackTag, UClass* InWidgetClass)
 {
 	if (!InWidgetClass || !CreatedPrimaryLayout) return nullptr;
-	// 1. 查找对应的 CommonActivatableWidgetContainer (Stack)
 	UCommonActivatableWidgetContainerBase* FoundWidgetStack = CreatedPrimaryLayout->FindWidgetStackByTag(InWidgetStackTag);
 	if (FoundWidgetStack)
 	{
-
-		// 2. 同步添加并返回实例
 		return FoundWidgetStack->AddWidget<UWidget_ActivatableBase>(InWidgetClass);
 	}
 	return nullptr;

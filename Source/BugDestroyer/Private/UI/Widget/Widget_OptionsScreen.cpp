@@ -8,7 +8,7 @@
 #include "Chaos/ChaosPerfTest.h"
 #include "Input/CommonUIInputTypes.h"
 #include "Settings/BugGameUserSettings.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 #include "Widget/Components/BugCommonButtonBase.h"
 #include "Widget/Components/BugCommonListView.h"
 #include "Widget/Components/BugTabListWidgetBase.h"

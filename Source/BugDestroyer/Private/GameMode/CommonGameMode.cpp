@@ -12,7 +12,8 @@
 #include "GameState/CommonGameState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Controllers/GameCommonPlayerController.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
+#include "Weapons/Weapon.h"
 
 namespace MatchState
 {
@@ -52,19 +53,40 @@ void ACommonGameMode::HandleMatchHasStarted()
 	Super::HandleMatchHasStarted();
 }
 
+void ACommonGameMode::BroadcastElimAnnouncement(AController* VictimController, class AController* AttackerController, AActor* Causer, bool bHeadShot)
+{
+	FString KillerName = AttackerController ? AttackerController->PlayerState->GetPlayerName() : TEXT("Environment");
+	FString VictimName = VictimController ? VictimController->PlayerState->GetPlayerName() : TEXT("Unknown");
+	// TODO: 判断是否爆头
+	FString WeaponName = TEXT("Generic"); 
+
+	if (AWeapon* Weapon = Cast<AWeapon>(Causer))
+	{
+		EWeaponType CurrentWeaponType = Weapon->GetWeaponType(); 
+		WeaponName = StaticEnum<EWeaponType>()->GetNameStringByValue(static_cast<int64>(CurrentWeaponType));
+	}
+
+	if (ACommonGameState* GS = GetGameState<ACommonGameState>())
+	{
+		GS->Multicast_BroadcastKillMessage(KillerName, VictimName, WeaponName, bHeadShot);
+	}
+}
+
 void ACommonGameMode::PlayerEliminated(class ABugCharacter* VictimCharacter, AController* VictimController,
-                                       class AController* AttackerController)
+                                       class AController* AttackerController, AActor* Causer, bool bHeadShot)
 {
 	
 	if (ACommonGamePlayerState* AttackerPS = Cast<ACommonGamePlayerState>(AttackerController->PlayerState))
 	{
-		AttackerPS->AddToScore(1.f);
+		AttackerPS->AddToKills(1);
 	}
 
 	if (ACommonGamePlayerState* VictimPS = Cast<ACommonGamePlayerState>(VictimController->PlayerState))
 	{
 		VictimPS->AddToDefeats(1);
 	}
+	
+	BroadcastElimAnnouncement(VictimController, AttackerController, Causer, bHeadShot);
 	
 	if (VictimCharacter)
 	{
@@ -176,27 +198,27 @@ void ACommonGameMode::HandleMatchEnd()
 {
 	GetWorldTimerManager().ClearTimer(MatchTimerHandle);
 	SetMatchState(MatchState::Cooldown);
-	TArray<FString> WinnerNames;
+	TArray<FString> MVPNames;
 	float MaxScoreDifference = -MAX_flt; 
 	for (APlayerState* PS : GameState->PlayerArray)
 	{
 		if (ACommonGamePlayerState* CommonPS = Cast<ACommonGamePlayerState>(PS))
 		{
-			float CurrentScoreDiff = CommonPS->GetScore() - CommonPS->GetDefeats();
+			float CurrentScoreDiff = CommonPS->GetKills() - CommonPS->GetDefeats();
 			if (CurrentScoreDiff > MaxScoreDifference)
 			{
 				MaxScoreDifference = CurrentScoreDiff;
-				WinnerNames.Empty();
-				WinnerNames.Add(CommonPS->GetPlayerName());
+				MVPNames.Empty();
+				MVPNames.Add(CommonPS->GetPlayerName());
 			}
 			else if (FMath::IsNearlyEqual(CurrentScoreDiff, MaxScoreDifference))
 			{
-				WinnerNames.Add(CommonPS->GetPlayerName());
+				MVPNames.Add(CommonPS->GetPlayerName());
 			}
 		}
 	}
 
-	FText FinalText = FText::FromString(FString::Join(WinnerNames, TEXT("\n")));
+	FText FinalText = FText::FromString(FString::Join(MVPNames, TEXT("\n")));
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
 		if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(It->Get()))

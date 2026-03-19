@@ -199,35 +199,15 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmLineTraceHit(const FFr
 		   ConfirmHitResult,
 		   TraceStart,
 		   TraceEnd,
-		   ECC_Visibility
+		   ECC_HitBox
 		);
 
-		if (ConfirmHitResult.bBlockingHit && ConfirmHitResult.Component.IsValid())
+		if (ConfirmHitResult.bBlockingHit)
 		{
-			Result.bHitConfirmed = true;
-			FName BoxName = ConfirmHitResult.Component->GetFName();
-			if (BoxName == FName("Head"))
-			{
-				Result.bHeadShot = true;
-			}
-			else if (BoxName == FName("Pelvis") || BoxName == FName("Spine"))
-			{
-				Result.bBodyShot = true;
-			}
-			else 
-			{
-				Result.bLimbShot = true;
-			}
+			Result.HitResult = ConfirmHitResult;
 		}
 	}
 	
-	for (auto& BoxPair : HitCharacter->GetHitBoxes())
-	{
-		if (BoxPair.Value)
-		{
-			BoxPair.Value->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
-	}
 	MoveBoxes(HitCharacter, CurrentFramePackage);
 
 	return Result;
@@ -262,24 +242,10 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmProjectileHit(const FF
 	FPredictProjectilePathResult PredictResult;
 	bool bHitHitBox = UGameplayStatics::PredictProjectilePath(GetWorld(), PredictParams, PredictResult);
 	// Predict ProjectilePath
-	
 	FServerSideRewindResult Result;
-	if (bHitHitBox && PredictResult.HitResult.Component.IsValid())
+	if (bHitHitBox)
 	{
-		Result.bHitConfirmed = true;
-		FName BoxName = PredictResult.HitResult.Component->GetFName();
-		if (BoxName == FName("Head")) Result.bHeadShot = true;
-		else if (BoxName == FName("Pelvis") || BoxName == FName("Spine")) Result.bBodyShot = true;
-		else Result.bLimbShot = true;
-	}
-	
-	
-	for (auto& BoxPair : HitCharacter->GetHitBoxes())
-	{
-		if (BoxPair.Value)
-		{
-			BoxPair.Value->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
+		Result.HitResult = PredictResult.HitResult;
 	}
 	MoveBoxes(HitCharacter, CurrentFramePackage);
 

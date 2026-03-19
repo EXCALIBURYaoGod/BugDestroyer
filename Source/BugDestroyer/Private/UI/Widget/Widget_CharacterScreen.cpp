@@ -3,11 +3,9 @@
 
 #include "Widget/Widget_CharacterScreen.h"
 
-#include "DebugHelper.h"
 #include "Character/BugCharacter.h"
-#include "GameState/CommonGamePlayerState.h"
 #include "GameState/CommonGameState.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 #include "Weapons/Weapon.h"
 
 void UWidget_CharacterScreen::NativeOnActivated()
@@ -26,11 +24,47 @@ void UWidget_CharacterScreen::NativeOnActivated()
 void UWidget_CharacterScreen::SetupGameStateBindings(ACommonGameState* GS)
 {
 	GS->OnMatchTimeUpdated.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnMatchTimeChangedCallback);
+	GS->OnKillMessageBroadcast.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnKillMessageReceivedCallback);
 	int32 M, S;
 	int32 MatchTime = GS->GetMatchTime();
 	M = MatchTime / 60;
 	S = MatchTime % 60;
 	OnMatchTimeChangedCallback(M, S);
+}
+
+void UWidget_CharacterScreen::OnKillMessageReceivedCallback(const FString& KillerName, const FString& VictimName,
+	const FString& AttackWeaponName, bool bIsHeadshot)
+{
+	TSoftObjectPtr<UTexture2D> FoundWeaponIcon = nullptr;
+
+	// 确保数据表已经在蓝图里配置好了
+	if (WeaponUIDataTable)
+	{
+		static const FString ContextString(TEXT("KillFeed Weapon Icon Lookup"));
+		
+		FWeaponUIData* Row = WeaponUIDataTable->FindRow<FWeaponUIData>(FName(*AttackWeaponName), ContextString, true);
+		if (Row)
+		{
+			FoundWeaponIcon = Row->KillFeedIcon;
+		}
+		else
+		{
+			FWeaponUIData* GenericRow = WeaponUIDataTable->FindRow<FWeaponUIData>(FName("Generic"), ContextString, true);
+			if (GenericRow)
+			{
+				FoundWeaponIcon = GenericRow->KillFeedIcon;
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("KillFeed: Failed to find 'Generic' fallback row in WeaponUIDataTable!"));
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("KillFeed: WeaponUIDataTable is NULL! Please assign it in WBP_CharacterScreen."));
+	}
+	BP_OnKillMessageReceived(KillerName, VictimName, FoundWeaponIcon, bIsHeadshot);
 }
 
 void UWidget_CharacterScreen::NativeConstruct()
@@ -39,13 +73,6 @@ void UWidget_CharacterScreen::NativeConstruct()
 	if (UBugUISubsystem* UISubsystem = UBugUISubsystem::Get(GetOwningPlayer()))
 	{
 		UISubsystem->OnPawnResubscribedDelegate.AddUniqueDynamic(this, &ThisClass::OnHandlePawnResubscribed);
-	}
-	if (ACommonGamePlayerState* CommonGamePlayerState = GetOwningPlayerState<ACommonGamePlayerState>())
-	{
-		CommonGamePlayerState->OnScoreChanged.AddUniqueDynamic(this, &ThisClass::OnScoreChangedCallback);
-		OnScoreChangedCallback(CommonGamePlayerState->GetScore());
-		CommonGamePlayerState->OnDefeatsChanged.AddUniqueDynamic(this, &ThisClass::OnDefeatsChangedCallback);
-		OnDefeatsChangedCallback(CommonGamePlayerState->GetDefeats());
 	}
 	if (ACommonGameState* GS = GetWorld()->GetGameState<ACommonGameState>())
 	{
@@ -86,16 +113,6 @@ void UWidget_CharacterScreen::OnHealthChangedCallback(float NewHealth, float Max
 void UWidget_CharacterScreen::OnShieldChangedCallback(float NewShield, float MaxShield)
 {
 	BP_OnShieldUpdated(NewShield, MaxShield);
-}
-
-void UWidget_CharacterScreen::OnScoreChangedCallback(float InNewScore)
-{
-	BP_OnScoreUpdated(InNewScore);
-}
-
-void UWidget_CharacterScreen::OnDefeatsChangedCallback(int32 InNewDefeats)
-{
-	BP_OnDefeatsUpdated(InNewDefeats);
 }
 
 void UWidget_CharacterScreen::OnAmmoChangedCallback(int32 InCurrentAmmo, int32 InMagCapacity, int32 InAmmoLeft)

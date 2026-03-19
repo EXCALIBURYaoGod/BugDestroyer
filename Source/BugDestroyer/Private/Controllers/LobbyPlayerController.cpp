@@ -4,7 +4,7 @@
 #include "Controllers/LobbyPlayerController.h"
 
 #include "GameMode/LobbyGameMode.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 #include "Widget/Widget_PrimaryLayout.h"
 
 void ALobbyPlayerController::RequestStartGameToUI()

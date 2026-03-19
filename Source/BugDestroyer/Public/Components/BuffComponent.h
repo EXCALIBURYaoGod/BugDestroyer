@@ -62,7 +62,7 @@ private:
 	float InitialBaseSpeed;
 	float InitialCrouchSpeed;
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPC_SpeedBuff(float BaseSpeed, float CrouchSpeed);
+	void MulticastRPC_SpeedBuff(float BaseSpeed, float CrouchSpeed, bool bPlaySprintAnimation);
 	// Speed Buff
 	
 	// Jump Buff

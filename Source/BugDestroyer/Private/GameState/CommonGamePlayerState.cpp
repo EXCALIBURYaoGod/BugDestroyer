@@ -12,6 +12,8 @@ void ACommonGamePlayerState::GetLifetimeReplicatedProps(TArray<class FLifetimePr
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ACommonGamePlayerState, Defeats);
+	DOREPLIFETIME(ACommonGamePlayerState, Kills);
+	DOREPLIFETIME(ACommonGamePlayerState, Team);
 }
 
 void ACommonGamePlayerState::Reset()
@@ -20,25 +22,14 @@ void ACommonGamePlayerState::Reset()
 	Defeats = 0;
 }
 
-void ACommonGamePlayerState::OnRep_Score()
-{
-	Super::OnRep_Score();
-	OnScoreChanged.Broadcast(GetScore());
-}
-
 void ACommonGamePlayerState::OnRep_Defeats()
 {
 	OnDefeatsChanged.Broadcast(GetDefeats());
 }
 
-void ACommonGamePlayerState::AddToScore(float InScore)
+void ACommonGamePlayerState::OnRep_Kills()
 {
-	if (HasAuthority())
-	{
-		SetScore(GetScore() + InScore);
-		OnScoreChanged.Broadcast(GetScore());
-	}
-	
+	OnKillsChanged.Broadcast(GetKills());
 }
 
 void ACommonGamePlayerState::AddToDefeats(int32 InDefeats)
@@ -47,6 +38,15 @@ void ACommonGamePlayerState::AddToDefeats(int32 InDefeats)
 	{
 		SetDefeats(GetDefeats() + InDefeats);
 		OnDefeatsChanged.Broadcast(InDefeats);
+	}
+}
+
+void ACommonGamePlayerState::AddToKills(int32 InKills)
+{
+	if (HasAuthority())
+	{
+		SetKills(GetKills() + InKills);
+		OnDefeatsChanged.Broadcast(InKills);
 	}
 }
 

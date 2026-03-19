@@ -62,8 +62,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* DefaultMappingContext;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* ToggleScoreboardAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* ToggleMenuAction;
 	void ToggleGameMenu();
+	void ToggleScoreboardButtonPressed();
+	void ToggleScoreboardButtonReleased();
 	// == Input == //
 	
 private:
@@ -72,8 +76,13 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Match")
 	FName MatchState;
 	bool bCharacterScreenPushed = false;
+	bool bScoreboardButtonPressed = false;
+	bool bSniperScopeButtonPressed = false;
 	UPROPERTY()
 	UWidget_ActivatableBase* CachedSniperScopeWidget;
+	UPROPERTY(Transient)
+	UWidget_ActivatableBase* CachedScoreboardWidget;
+	
 	
 	// == 客户端与服务端的时钟同步 == //
 	UFUNCTION(Server, Reliable)

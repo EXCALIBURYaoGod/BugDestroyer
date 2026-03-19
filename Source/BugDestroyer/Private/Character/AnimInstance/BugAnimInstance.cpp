@@ -84,6 +84,7 @@ void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		bAiming = Character->IsAiming();
 		bElimmed = Character->IsElimmed();
 		bWantsToMove = Character->IsWantsToMove();
+		bPlaySprintAnimation = Character->IsPlaySprintAnimation();
 		bTossingGrenade = Character->GetCombatState() == ECombatState::ECS_TossingGrenade;
 		
 		// 计算移动时的Strafing和lean

@@ -6,10 +6,12 @@
 #include "GameFramework/GameState.h"
 #include "CommonGameState.generated.h"
 
+class ACommonGamePlayerState;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMatchTimeUpdated, int32, Minutes, int32, Seconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWarmupTimeUpdated, int32, Minutes, int32, Seconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCooldownTimeUpdated, int32, Minutes, int32, Seconds);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWinnerNameUpdated, const FText&, WinnerNames);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMVPNameUpdated, const FText&, WinnerNames);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnKillMessageBroadcast, const FString&, KillerName, const FString&, VictimName, const FString&, WeaponName, bool, bIsHeadshot);
 
 /**
  * 通用比赛状态类，负责存储全局比赛数据
@@ -22,6 +24,11 @@ public:
 	ACommonGameState();
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_BroadcastKillMessage(const FString& KillerName, const FString& VictimName, const FString& WeaponName, bool bIsHeadshot);
+	
+	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
+	FOnKillMessageBroadcast OnKillMessageBroadcast;
 	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
 	FOnMatchTimeUpdated OnMatchTimeUpdated;
 	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
@@ -29,7 +36,22 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
 	FOnCooldownTimeUpdated OnCooldownTimeUpdated;
 	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
-	FOnWinnerNameUpdated OnWinnerNameUpdated;
+	FOnMVPNameUpdated OnMVPNameUpdated;
+
+	// == Teams == //
+	UPROPERTY(VisibleAnywhere, Category = "Teams|Match")
+	TArray<ACommonGamePlayerState*> RedTeam;
+	UPROPERTY(VisibleAnywhere, Category = "Teams|Match")
+	TArray<ACommonGamePlayerState*> BlueTeam;
+	UPROPERTY(ReplicatedUsing=OnRep_RedTeamScore)
+	int32 RedTeamScore;
+	UPROPERTY(ReplicatedUsing=OnRep_BlueTeamScore)
+	int32 BlueTeamScore;
+	UFUNCTION()
+	void OnRep_RedTeamScore();
+	UFUNCTION()
+	void OnRep_BlueTeamScore();
+	// == Teams == //
 	
 protected:
 	virtual void BeginPlay() override;

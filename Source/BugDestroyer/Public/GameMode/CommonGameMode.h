@@ -23,9 +23,10 @@ public:
 	
 	// begin AGameMode Interface
 	virtual void HandleMatchHasStarted() override;
+	void BroadcastElimAnnouncement(AController* VictimController, class AController* AttackerController, AActor* Causer, bool bHeadShot);
 	// end AGameMode Interface
 	
-	virtual void PlayerEliminated(class ABugCharacter* VictimCharacter, AController* VictimController, class AController* AttackerController);
+	virtual void PlayerEliminated(class ABugCharacter* VictimCharacter, AController* VictimController, class AController* AttackerController, AActor* Causer, bool bHeadShot);
 	virtual void RequestRespawn(ACharacter* VictimCharacter, AController* VictimController);
 	
 	

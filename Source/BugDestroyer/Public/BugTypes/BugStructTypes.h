@@ -113,13 +113,30 @@ struct FServerSideRewindResult
 	GENERATED_BODY()
 	
 	UPROPERTY(BlueprintReadOnly)
-	bool bHitConfirmed = false;
-	UPROPERTY(BlueprintReadOnly)
-	bool bHeadShot = false;
-	UPROPERTY(BlueprintReadOnly)
-	bool bBodyShot = false;
-	UPROPERTY(BlueprintReadOnly)
-	bool bLimbShot = false;
+	FHitResult HitResult;
 	
-	
+};
+
+class UTexture2D;
+
+/**
+ * 武器 UI 数据表结构
+ * 必须继承自 FTableRowBase
+ */
+USTRUCT(BlueprintType)
+struct FWeaponUIData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+public:
+	// 击杀提示右上角的图标 (强推软引用，配合 CommonLazyImage 异步加载)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon UI")
+	TSoftObjectPtr<UTexture2D> KillFeedIcon;
+
+	// 💡 扩展思路：未来你还可以把武器的本地化名字、准星样式也加在这里
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon UI")
+	// FText WeaponDisplayName;
+    
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon UI")
+	// TSoftClassPtr<UUserWidget> CrosshairWidgetClass;
 };

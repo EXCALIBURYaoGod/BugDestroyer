@@ -92,15 +92,14 @@ void UBuffComponent::BuffSpeed(float BuffBaseSpeed, float BuffCrouchSpeed, float
 		CharMovComp->MaxWalkSpeedCrouched = BuffCrouchSpeed;
 	}
 	
-	
 	BugCharacter->GetWorldTimerManager().SetTimer(
 		SpeedBuffTimer,
 		this,
 		&ThisClass::ResetSpeed,
 		BuffSpeedTime
 	);
-	
-	MulticastRPC_SpeedBuff(BuffBaseSpeed, BuffCrouchSpeed);
+	BugCharacter->SetPlaySprintAnimation(false);
+	MulticastRPC_SpeedBuff(BuffBaseSpeed, BuffCrouchSpeed, false);
 	
 }
 
@@ -128,10 +127,11 @@ void UBuffComponent::ResetSpeed()
 		CharMovComp->MaxWalkSpeed = MaxWalkSpeedToReset;
 		CharMovComp->MaxWalkSpeedCrouched = InitialCrouchSpeed;
 	}
-	MulticastRPC_SpeedBuff(MaxWalkSpeedToReset, InitialCrouchSpeed);
+	BugCharacter->SetPlaySprintAnimation(true);
+	MulticastRPC_SpeedBuff(MaxWalkSpeedToReset, InitialCrouchSpeed, true);
 }
 
-void UBuffComponent::MulticastRPC_SpeedBuff_Implementation(float BaseSpeed, float CrouchSpeed)
+void UBuffComponent::MulticastRPC_SpeedBuff_Implementation(float BaseSpeed, float CrouchSpeed, bool bPlaySprintAnimation)
 {
 	if (BugCharacter == nullptr) return;
 	if (UCharacterMovementComponent* CharMovComp = BugCharacter->GetCharacterMovement())
@@ -139,6 +139,7 @@ void UBuffComponent::MulticastRPC_SpeedBuff_Implementation(float BaseSpeed, floa
 		CharMovComp->MaxWalkSpeed = BaseSpeed;
 		CharMovComp->MaxWalkSpeedCrouched = CrouchSpeed;
 	}
+	BugCharacter->SetPlaySprintAnimation(bPlaySprintAnimation);
 }
 
 void UBuffComponent::SetInitialJumpVelocity(float JumpVelocity)

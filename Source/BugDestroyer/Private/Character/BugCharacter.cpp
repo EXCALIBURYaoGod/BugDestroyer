@@ -66,7 +66,6 @@ ABugCharacter::ABugCharacter()
 	AttachedGrenadeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AttachedGrenade"));
 	AttachedGrenadeMesh->SetupAttachment(GetMesh(), FName("GrenadeSocket"));
 	AttachedGrenadeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	
 	InitHitBox(Head, TEXT("Head"), FName("head"));
 	InitHitBox(Pelvis, TEXT("Pelvis"), FName("pelvis"));
 	InitHitBox(Spine, TEXT("Spine"), FName("spine_02"));
@@ -358,32 +357,42 @@ void ABugCharacter::Jump()
 
 float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
 {
-	if (bElimmed) return 0.0f;
-	
 	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-	float DamageToHealth = ActualDamage;
-	if (GetCurrentShield() > 0.f)
-	{
-		if (GetCurrentShield() >= ActualDamage)
-		{
-			SetCurrentShield(FMath::Clamp(GetCurrentShield() - ActualDamage, 0.f, GetMaxShield()));
-			DamageToHealth = 0.f;
-			OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
-		}
-		else
-		{
-			DamageToHealth = FMath::Clamp(DamageToHealth - GetCurrentShield(), 0.f, ActualDamage);
-			SetCurrentShield(0.f);
-			OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
-		}
-	}
-	
+	if (bElimmed) return 0.0f;
 	if (HasAuthority())
 	{
+		float DamageToHealth = ActualDamage;
 		if (DamageEvent.IsOfType(FRadialDamageEvent::ClassID))
 		{
 			const FRadialDamageEvent* RadialEvent = static_cast<const FRadialDamageEvent*>(&DamageEvent);
 			GetHit(RadialEvent->Origin);
+		}
+		FHitResult HitInfo;
+		if (DamageEvent.IsOfType(FPointDamageEvent::ClassID)) 
+		{
+			const FPointDamageEvent* PointDamageEvent = static_cast<const FPointDamageEvent*>(&DamageEvent);
+			HitInfo = PointDamageEvent->HitInfo;
+		}
+		bool bIsHeadshot = false;
+		if (HitInfo.GetComponent() && HitInfo.GetComponent()->ComponentHasTag(FName("Head")))
+		{
+			bIsHeadshot = true;
+			DamageToHealth = DamageToHealth * 2;
+		}
+		if (GetCurrentShield() > 0.f)
+		{
+			if (GetCurrentShield() >= ActualDamage)
+			{
+				SetCurrentShield(FMath::Clamp(GetCurrentShield() - ActualDamage, 0.f, GetMaxShield()));
+				DamageToHealth = 0.f;
+				OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
+			}
+			else
+			{
+				DamageToHealth = FMath::Clamp(DamageToHealth - GetCurrentShield(), 0.f, ActualDamage);
+				SetCurrentShield(0.f);
+				OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
+			}
 		}
 		CurrentHealth = FMath::Clamp(CurrentHealth - DamageToHealth, 0.f, MaxHealth);
 		OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
@@ -392,7 +401,7 @@ float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& D
 			ACommonGameMode* GameMode = GetWorld()->GetAuthGameMode<ACommonGameMode>();
 			if (GameMode && GetController())
 			{
-				GameMode->PlayerEliminated(this, GetController(), EventInstigator);
+				GameMode->PlayerEliminated(this, GetController(), EventInstigator, DamageCauser, bIsHeadshot);
 			}
 		}
 	}

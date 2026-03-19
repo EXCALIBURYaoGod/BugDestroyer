@@ -38,14 +38,6 @@ protected:
 	UFUNCTION()
 	void OnShieldChangedCallback(float NewShield, float MaxShield);
 	UFUNCTION()
-	void OnScoreChangedCallback(float InNewScore);
-	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
-	void BP_OnScoreUpdated(float InNewScore);
-	UFUNCTION()
-	void OnDefeatsChangedCallback(int32 InNewDefeats);
-	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
-	void BP_OnDefeatsUpdated(int32 InNewDefeats);
-	UFUNCTION()
 	void OnAmmoChangedCallback(int32 InCurrentAmmo, int32 InMagCapacity, int32 InAmmoLeft);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnAmmoUpdated(int32 InCurrentAmmo, int32 InMagCapacity, int32 InAmmoLeft);
@@ -73,11 +65,17 @@ protected:
 	void BP_SetNetWarningHUDVisibility(bool bIsVisible);
 	void OnGameStateSet(AGameStateBase* GameStateBase);
 	void SetupGameStateBindings(ACommonGameState* GS);
+	UFUNCTION()
+	void OnKillMessageReceivedCallback(const FString& KillerName, const FString& VictimName, const FString& AttackWeaponName, bool bIsHeadshot);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_OnKillMessageReceived(const FString& KillerName, const FString& VictimName, const TSoftObjectPtr<UTexture2D>& WeaponIcon, bool bIsHeadshot);
 	
 	UFUNCTION(BlueprintPure)
 	ABugCharacter* GetOwningCharacter();
 	UPROPERTY(BlueprintReadOnly)
 	AWeapon* CachedEquippedWeapon;
+	UPROPERTY(EditDefaultsOnly, Category = "BugDestroyer|Data")
+	UDataTable* WeaponUIDataTable;
 	
 private:
 

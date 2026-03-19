@@ -7,7 +7,7 @@
 #include "CommonButtonBase.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameFramework/PlayerController.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 
 void UWidget_GameMenuScreen::NativeOnInitialized()
 {

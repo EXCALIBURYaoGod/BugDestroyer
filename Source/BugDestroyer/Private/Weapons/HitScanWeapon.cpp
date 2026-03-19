@@ -103,16 +103,19 @@ void AHitScanWeapon::ServerHitRequest_Implementation(ABugCharacter* HitCharacter
 	if (ULagCompensationComponent* LagCompensationComponent = CachedOwningBugCharacterForEquip->GetLagCompensationComponent())
 	{
 		FServerSideRewindResult ServerSideRewindResult = LagCompensationComponent->ServerSideRewind_LineTrace(HitCharacter, TraceStart, HitLocation, HitTime);
-		if (HitCharacter && ServerSideRewindResult.bHitConfirmed)
+		if (HitCharacter && ServerSideRewindResult.HitResult.bBlockingHit)
 		{
 			float Damage = DamageCauser->GetHitImpactDataByHitActorOwnTag(HitCharacter)->ImpactDamage;
-			UGameplayStatics::ApplyDamage(
+			FVector ShotDirection = ServerSideRewindResult.HitResult.ImpactNormal;
+			UGameplayStatics::ApplyPointDamage(
 				HitCharacter,
 				Damage,
+				ShotDirection,
+				ServerSideRewindResult.HitResult,  
 				CachedOwningBugCharacterForEquip->GetController(),
 				DamageCauser,
 				UDamageType::StaticClass()
-			);
+			 );
 		}
 	}
 }
@@ -145,7 +148,7 @@ FVector AHitScanWeapon::PerformHitScanTrace(const APawn* OwnerPawn, const FVecto
 			TraceHit,
 			MuzzleSocketLocation,
 			LineTraceEnd,
-			ECC_Visibility,
+			ECC_HitBox,
 			QueryParams
 		);
 	}
@@ -167,13 +170,16 @@ void AHitScanWeapon::ApplyDamageByTag(APawn* OwnerPawn, FHitResult TraceHit)
 		AController* InstigatorController = OwnerPawn->GetController();
 		if (HasAuthority() && InstigatorController)
 		{
-			BugCharacter->GetHit(TraceHit.ImpactPoint);
-			UGameplayStatics::ApplyDamage(
-				BugCharacter,
-				SelectedData->ImpactDamage,
-				InstigatorController,
-				this,
-				UDamageType::StaticClass()
+			float FinalDamage = SelectedData->ImpactDamage;
+			FVector ShotDirection = (TraceHit.ImpactPoint - TraceHit.TraceStart).GetSafeNormal();
+			UGameplayStatics::ApplyPointDamage(
+			   BugCharacter,
+			   FinalDamage,
+			   ShotDirection,
+			   TraceHit, 
+			   InstigatorController,
+			   this,
+			   UDamageType::StaticClass()
 			);
 		}
 	}
@@ -209,6 +215,10 @@ void AHitScanWeapon::SpawnImpactEffect(const FVector& Point, const FVector& Norm
 	const FImpactEffectData* SelectedData = GetHitImpactDataByHitActorOwnTag(HitActor);
 	if (UWorld* World = GetWorld())
 	{
+		if (ABugCharacter* BugCharacter = Cast<ABugCharacter>(HitActor))
+		{
+			BugCharacter->GetHit(Point);
+		}
 		if (SelectedData->Particles)
         	{
         		UGameplayStatics::SpawnEmitterAtLocation(

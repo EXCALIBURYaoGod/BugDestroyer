@@ -7,7 +7,7 @@
 #include "DebugHelper.h"
 #include "MultiplayerSessionsSubsystem.h"
 #include "Controllers/BugUIPlayerController.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 #include "Widget/Components/BugCommonListView.h"
 #include "Widget/Options/DataObjects/ListDataObject_Session.h"
 

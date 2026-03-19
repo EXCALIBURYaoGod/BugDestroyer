@@ -11,7 +11,7 @@
 	FORCEINLINE DataType Get##PropertyName() const {return PropertyName;} \
 	void Set##PropertyName(DataType In##PropertyName) {PropertyName = In##PropertyName;}
 struct FOptionsDataEditConditionDescriptor;
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnListDataModifiedDelegate, UListDataObject_Base*, EOptionsListDataModifyReason);
+
 /**
  * 
  */

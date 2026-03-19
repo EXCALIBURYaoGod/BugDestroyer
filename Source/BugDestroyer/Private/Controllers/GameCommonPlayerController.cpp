@@ -5,17 +5,15 @@
 
 #include "BugGameplayTags.h"
 #include "BugUIFunctionLibrary.h"
-#include "DebugHelper.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-
 #include "Blueprint/UserWidget.h"
 #include "Character/BugCharacter.h"
 #include "GameFramework/GameMode.h"
-#include "GameFramework/GameState.h"
 #include "GameFramework/PlayerState.h"
 #include "GameMode/CommonGameMode.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
+#include "UserSettings/EnhancedInputUserSettings.h"
 #include "Weapons/Weapon.h"
 #include "Widget/Widget_MatchCooldownScreen.h"
 #include "Widget/Widget_PrimaryLayout.h"
@@ -66,19 +64,37 @@ void AGameCommonPlayerController::Client_ShowMatchCooldown_Implementation(const 
 
 void AGameCommonPlayerController::ShowSniperScopeWidget(bool bIsShow)
 {
+	bSniperScopeButtonPressed = bIsShow;
 	if (bIsShow)
 	{
-		TSoftClassPtr<UWidget_ActivatableBase> ScopeClass = UBugUIFunctionLibrary::GetSoftWidgetClassByTag(BugGameplayTags::Bug_Widget_SniperScopeScreen);
-		CachedSniperScopeWidget = UBugUISubsystem::Get(this)->PushSoftWidgetToStack(
-			BugGameplayTags::Bug_WidgetStack_Modal, 
-			ScopeClass
-		);
+		if (UBugUISubsystem* BugUISubsystem = UBugUISubsystem::Get(this))
+		{
+			
+			TSoftClassPtr<UWidget_ActivatableBase> ScopeClass = UBugUIFunctionLibrary::GetSoftWidgetClassByTag(BugGameplayTags::Bug_Widget_SniperScopeScreen);
+			BugUISubsystem->PushSoftWidgetToStackAsync(
+				BugGameplayTags::Bug_WidgetStack_Modal, 
+				ScopeClass,
+				[this](EAsyncPushWidgetState PushWidgetState, UWidget_ActivatableBase* PushedWidget)
+				{
+					if (PushWidgetState == EAsyncPushWidgetState::AfterPush)
+					{
+						CachedSniperScopeWidget = PushedWidget;
+						
+						if (!bSniperScopeButtonPressed)
+						{
+							CachedSniperScopeWidget->DeactivateWidget();
+						}
+					}
+				}
+			);
+		}
 	}
 	else
 	{
 		if (CachedSniperScopeWidget)
 		{
 			CachedSniperScopeWidget->DeactivateWidget();
+			CachedSniperScopeWidget = nullptr;
 		}
 	}
 }
@@ -122,9 +138,17 @@ void AGameCommonPlayerController::ReceivedPlayer()
 		CreatePrimaryLayout();
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
-			if (DefaultMappingContext)
+			UEnhancedInputUserSettings* UserSettings = Subsystem->GetUserSettings();
+			if (UserSettings)
 			{
-				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+				
+				if (DefaultMappingContext)
+				{
+					UserSettings->RegisterInputMappingContext(DefaultMappingContext);
+					FModifyContextOptions Options;
+					Options.bIgnoreAllPressedKeysUntilRelease = true;
+					Subsystem->AddMappingContext(DefaultMappingContext, 0, Options);
+				}
 			}
 		}
 	}
@@ -299,6 +323,12 @@ void AGameCommonPlayerController::SetupInputComponent()
 		{
 			EnhancedInputComponent->BindAction(ToggleMenuAction, ETriggerEvent::Started, this, &ThisClass::ToggleGameMenu);
 		}
+		if (ToggleScoreboardAction)
+		{
+			EnhancedInputComponent->BindAction(ToggleScoreboardAction, ETriggerEvent::Started, this, &ThisClass::ToggleScoreboardButtonPressed);
+			EnhancedInputComponent->BindAction(ToggleScoreboardAction, ETriggerEvent::Canceled, this, &ThisClass::ToggleScoreboardButtonReleased);
+			EnhancedInputComponent->BindAction(ToggleScoreboardAction, ETriggerEvent::Completed, this, &ThisClass::ToggleScoreboardButtonReleased);
+		}
 	}
 	
 }
@@ -313,6 +343,44 @@ void AGameCommonPlayerController::ToggleGameMenu()
 		);
 	}
 }
+
+void AGameCommonPlayerController::ToggleScoreboardButtonPressed()
+{
+	bScoreboardButtonPressed = true;
+
+	if (UBugUISubsystem* BugUISubsystem = UBugUISubsystem::Get(this))
+	{
+
+		BugUISubsystem->PushSoftWidgetToStackAsync(
+		   BugGameplayTags::Bug_WidgetStack_Modal, 
+		   UBugUIFunctionLibrary::GetSoftWidgetClassByTag(BugGameplayTags::Bug_Widget_ScoreboardScreen),
+		   [this](EAsyncPushWidgetState PushWidgetState, UWidget_ActivatableBase* PushedWidget)
+		   {
+
+			   if (PushWidgetState == EAsyncPushWidgetState::AfterPush)
+			   {
+				   CachedScoreboardWidget = PushedWidget;
+			   	
+				   if (!bScoreboardButtonPressed)
+				   {
+					   CachedScoreboardWidget->DeactivateWidget();
+				   }
+			   }
+		   }
+		);
+	}
+}
+
+void AGameCommonPlayerController::ToggleScoreboardButtonReleased()
+{
+	bScoreboardButtonPressed = false;
+	if (CachedScoreboardWidget)
+	{
+		CachedScoreboardWidget->DeactivateWidget();
+		CachedScoreboardWidget = nullptr;
+	}
+}
+
 
 void AGameCommonPlayerController::ServerSetWeaponSSR_Implementation(bool bEnableSSR)
 {

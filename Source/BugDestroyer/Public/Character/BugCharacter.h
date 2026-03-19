@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagAssetInterface.h"
 #include "InputActionValue.h"
+#include "BugDestroyer/BugDestroyer.h"
 #include "Components/BuffComponent.h"
 #include "Components/CombatComponent.h"
 #include "Components/TimelineComponent.h"
@@ -154,7 +155,11 @@ protected:
 	{
 		BoxComponent = CreateDefaultSubobject<T>(Name);
 		BoxComponent->SetupAttachment(GetMesh(), BoneName);
-		BoxComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		BoxComponent->SetCollisionObjectType(ECC_HitBox);
+		BoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		BoxComponent->SetCollisionResponseToChannel(ECC_HitBox, ECR_Block);
+		BoxComponent->SetCollisionResponseToChannel(ECC_Projectile, ECR_Block);
+		BoxComponent->ComponentTags.Add(Name);
 		HitBoxes.Add(Name, BoxComponent);
 	}
 	// == Hit boxes used for server-side rewind == //
@@ -271,7 +276,10 @@ private:
 	float CurrentDitherAlpha =  1.f;
 	UPROPERTY(VisibleAnywhere, Category = "Character")
 	TArray<UMaterialInstanceDynamic*> DynamicMeshMID;
+	
+	bool bPlaySprintAnimation = true;	// 用于在获得SpeedBuff时，禁用Sprint动画，以实现快速移动射击
 
+	
 public:
 	void SetOverlappingWeapon(AWeapon* Weapon, bool bIsOverlapping);
 	void SetMaxWalkSpeed(float InMaxWalkSpeed);
@@ -282,6 +290,8 @@ public:
 	void OnTossGrenadeFinished();
 	// Animation Notify Callbacks
 	
+	FORCEINLINE void SetPlaySprintAnimation(const bool InBool) { bPlaySprintAnimation = InBool; }
+	FORCEINLINE bool IsPlaySprintAnimation() const { return bPlaySprintAnimation; }
 	FORCEINLINE bool IsWeaponEquipped() const { return CombatComponent && CombatComponent->PrimaryWeapon; }
 	FORCEINLINE UCombatComponent* GetCombatComponent() const { return CombatComponent; }
 	FORCEINLINE bool IsAiming() const { return CombatComponent && CombatComponent->bAiming; }

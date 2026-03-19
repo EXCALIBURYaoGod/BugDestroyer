@@ -28,6 +28,7 @@ namespace BugGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_MatchCooldownScreen, "Bug.Widget.MatchCooldownScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_SniperScopeScreen, "Bug.Widget.SniperScopeScreen");
 	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_GameMenuScreen, "Bug.Widget.GameMenuScreen");
+	UE_DEFINE_GAMEPLAY_TAG(Bug_Widget_ScoreboardScreen, "Bug.Widget.ScoreboardScreen");
 	// Widgets Tags
 	
 	// Soft Options image Tags

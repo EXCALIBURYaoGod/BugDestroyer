@@ -20,6 +20,22 @@ void ACommonGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	
 }
 
+void ACommonGameState::Multicast_BroadcastKillMessage_Implementation(const FString& KillerName,
+	const FString& VictimName, const FString& WeaponName, bool bIsHeadshot)
+{
+	OnKillMessageBroadcast.Broadcast(KillerName, VictimName, WeaponName, bIsHeadshot);
+}
+
+void ACommonGameState::OnRep_RedTeamScore()
+{
+	
+}
+
+void ACommonGameState::OnRep_BlueTeamScore()
+{
+	
+}
+
 void ACommonGameState::BeginPlay()
 {
 	Super::BeginPlay();

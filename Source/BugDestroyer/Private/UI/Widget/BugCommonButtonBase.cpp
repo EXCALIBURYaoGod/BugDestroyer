@@ -5,7 +5,7 @@
 
 #include "CommonLazyImage.h"
 #include "CommonTextBlock.h"
-#include "Subsystems/BugUISubsystem.h"
+#include "UI/Subsystems/BugUISubsystem.h"
 
 void UBugCommonButtonBase::SetButtonText(FText InButtonText)
 {
