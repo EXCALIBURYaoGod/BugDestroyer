@@ -78,9 +78,12 @@ void ULagCompensationComponent::MoveBoxes(ABugCharacter* HitCharacter, const FFr
 	{
 		if (HitBoxPair.Value != nullptr)
 		{
-			HitBoxPair.Value->SetWorldLocation(InMovePackage.HitBoxInfo[HitBoxPair.Key].Location);
-			HitBoxPair.Value->SetWorldRotation(InMovePackage.HitBoxInfo[HitBoxPair.Key].Rotation);
-			HitBoxPair.Value->SetBoxExtent(InMovePackage.HitBoxInfo[HitBoxPair.Key].BoxExtent);
+			if (const FBoxInformation* BoxInfo = InMovePackage.HitBoxInfo.Find(HitBoxPair.Key))
+			{
+				HitBoxPair.Value->SetWorldLocation(BoxInfo->Location);
+				HitBoxPair.Value->SetWorldRotation(BoxInfo->Rotation);
+				HitBoxPair.Value->SetBoxExtent(BoxInfo->BoxExtent);
+			}
 		}
 	}
 }
@@ -106,7 +109,7 @@ void ULagCompensationComponent::SaveFramePackage()
 		SaveFramePackageHitBoxes(ThisFrame);
 		FrameHistory.AddHead(ThisFrame);
 		
-	//	ShowFramePackage(ThisFrame, FColor::Red);
+		ShowFramePackage(ThisFrame, FColor::Red);
 	}
 }
 
@@ -126,7 +129,6 @@ FFramePackage ULagCompensationComponent::GetFramePackageByTime(ABugCharacter* Hi
 
 	if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(HitCharacter->GetController()))
 	{
-		HitTime = HitTime + PC->GetClientServerDelta();
 		bool bShouldInterpolate = true;
 		const TDoubleLinkedList<FFramePackage>& History = HitCharacter->GetLagCompensationComponent()->FrameHistory;
 		const float OldestHistoryTime = History.GetTail()->GetValue().Time;
@@ -265,6 +267,10 @@ FServerSideRewindResult ULagCompensationComponent::ServerSideRewind_LineTrace(AB
 		return FServerSideRewindResult();
 	}
 	FFramePackage FrameToCheck = GetFramePackageByTime(HitCharacter, HitTime);
+	if (FrameToCheck.HitBoxInfo.IsEmpty())
+	{
+		return FServerSideRewindResult();
+	}
 	return ConfirmLineTraceHit(FrameToCheck, HitCharacter, TraceStart, HitLocation);
 	
 }
@@ -282,6 +288,10 @@ FServerSideRewindResult ULagCompensationComponent::ServerSideRewind_Projectile(A
 		return FServerSideRewindResult();
 	}
 	FFramePackage FrameToCheck = GetFramePackageByTime(HitCharacter, HitTime);
+	if (FrameToCheck.HitBoxInfo.IsEmpty())
+	{
+		return FServerSideRewindResult();
+	}
 	return ConfirmProjectileHit(FrameToCheck, HitCharacter, TraceStart, InitialVelocity);
 }
 

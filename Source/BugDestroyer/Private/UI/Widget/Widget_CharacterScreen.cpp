@@ -4,6 +4,7 @@
 #include "Widget/Widget_CharacterScreen.h"
 
 #include "Character/BugCharacter.h"
+#include "GameState/CommonGamePlayerState.h"
 #include "GameState/CommonGameState.h"
 #include "UI/Subsystems/BugUISubsystem.h"
 #include "Weapons/Weapon.h"
@@ -25,6 +26,24 @@ void UWidget_CharacterScreen::SetupGameStateBindings(ACommonGameState* GS)
 {
 	GS->OnMatchTimeUpdated.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnMatchTimeChangedCallback);
 	GS->OnKillMessageBroadcast.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnKillMessageReceivedCallback);
+	GS->OnTeamScoreUpdated.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnTeamScoreChangedCallback);
+	CachedPlayerState = Cast<ACommonGamePlayerState>(GetOwningPlayerState());
+	int32 OurTeamScore = 0;
+	int32 EnemyTeamScore = 0;
+	if (CachedPlayerState)
+	{
+		if (CachedPlayerState->GetTeam() == ETeam::ET_RedTeam)
+		{
+			OurTeamScore = GS->RedTeamScore;
+			EnemyTeamScore = GS->BlueTeamScore;
+		}
+		else if (CachedPlayerState->GetTeam() == ETeam::ET_BlueTeam)
+		{
+			OurTeamScore = GS->BlueTeamScore;
+			EnemyTeamScore = GS->RedTeamScore;
+		}
+	}
+	OnTeamScoreChangedCallback(OurTeamScore, EnemyTeamScore);
 	int32 M, S;
 	int32 MatchTime = GS->GetMatchTime();
 	M = MatchTime / 60;
@@ -36,8 +55,7 @@ void UWidget_CharacterScreen::OnKillMessageReceivedCallback(const FString& Kille
 	const FString& AttackWeaponName, bool bIsHeadshot)
 {
 	TSoftObjectPtr<UTexture2D> FoundWeaponIcon = nullptr;
-
-	// 确保数据表已经在蓝图里配置好了
+	bool bGeneric = (AttackWeaponName == TEXT("Generic"));
 	if (WeaponUIDataTable)
 	{
 		static const FString ContextString(TEXT("KillFeed Weapon Icon Lookup"));
@@ -53,6 +71,7 @@ void UWidget_CharacterScreen::OnKillMessageReceivedCallback(const FString& Kille
 			if (GenericRow)
 			{
 				FoundWeaponIcon = GenericRow->KillFeedIcon;
+				bGeneric = true;
 			}
 			else
 			{
@@ -64,7 +83,7 @@ void UWidget_CharacterScreen::OnKillMessageReceivedCallback(const FString& Kille
 	{
 		UE_LOG(LogTemp, Error, TEXT("KillFeed: WeaponUIDataTable is NULL! Please assign it in WBP_CharacterScreen."));
 	}
-	BP_OnKillMessageReceived(KillerName, VictimName, FoundWeaponIcon, bIsHeadshot);
+	BP_OnKillMessageReceived(KillerName, VictimName, FoundWeaponIcon, bIsHeadshot, bGeneric);
 }
 
 void UWidget_CharacterScreen::NativeConstruct()
@@ -160,6 +179,26 @@ void UWidget_CharacterScreen::OnAmmoLeftChangedCallback(int32 InCurrentAmmo, int
 void UWidget_CharacterScreen::OnMatchTimeChangedCallback(int32 InNewMinutes, int32 InNewSeconds)
 {
 	BP_OnMatchTimeUpdated(InNewMinutes, InNewSeconds);
+}
+
+void UWidget_CharacterScreen::OnTeamScoreChangedCallback(int32 InRedTeamScore, int32 InBlueTeamScore)
+{
+	int32 OurTeamScore = 0;
+	int32 EnemyTeamScore = 0;
+	if (CachedPlayerState)
+	{
+		if (CachedPlayerState->GetTeam() == ETeam::ET_RedTeam)
+		{
+			OurTeamScore = InRedTeamScore;
+			EnemyTeamScore = InBlueTeamScore;
+		}
+		else if (CachedPlayerState->GetTeam() == ETeam::ET_BlueTeam)
+		{
+			OurTeamScore = InBlueTeamScore;
+			EnemyTeamScore = InRedTeamScore;
+		}
+	}
+	BP_OnTeamScoreUpdated(OurTeamScore, EnemyTeamScore);
 }
 
 void UWidget_CharacterScreen::OnGrenadeAmountChangedCallback(int32 InCurrentGrenadeAmount)

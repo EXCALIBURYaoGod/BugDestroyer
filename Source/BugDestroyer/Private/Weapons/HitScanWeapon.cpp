@@ -5,6 +5,7 @@
 
 #include "Character/BugCharacter.h"
 #include "Components/LagCompensationComponent.h"
+#include "Controllers/GameCommonPlayerController.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystemComponent.h"
@@ -89,7 +90,12 @@ void AHitScanWeapon::SimulateFireFX(const FVector& HitTarget, int32 InRandomSeed
 				{
 					if (ABugCharacter* HitCharacter = Cast<ABugCharacter>(PredictionHit.GetActor()))
                     {
-						ServerHitRequest(HitCharacter, GetMuzzleSocketLocation(), PredictionHit.ImpactPoint, GetWorld()->GetTimeSeconds(), this);
+						if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(OwnerPawn->GetController()))
+						{
+							float SyncedServerTime = GetWorld()->GetTimeSeconds() + PC->GetClientServerDelta(); 
+							float SSR_HitTime = SyncedServerTime - PC->GetSingleTripTime();
+							ServerHitRequest(HitCharacter, GetMuzzleSocketLocation(), PredictionHit.ImpactPoint, SSR_HitTime, this);
+						}
                     }
 				}
 			}

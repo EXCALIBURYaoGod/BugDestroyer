@@ -11,6 +11,7 @@ class AGameCommonPlayerController;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDefeatsChanged, int32, NewDefeats);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnKillsChanged, int32, NewKills);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTeamUpdated, ETeam, NewTeam);
 
 /**
  * 通用PlayerState, 默认
@@ -30,6 +31,8 @@ public:
 	void OnRep_Defeats();
 	UFUNCTION()
 	void OnRep_Kills();
+	UFUNCTION()
+	void OnRep_Team();
 	
 	void AddToDefeats(int32 InDefeats);
 	void AddToKills(int32 InKills);
@@ -38,6 +41,8 @@ public:
 	FOnDefeatsChanged OnDefeatsChanged;
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnDefeatsChanged OnKillsChanged;
+	UPROPERTY(BlueprintAssignable)
+	FOnTeamUpdated OnTeamUpdatedDelegate;
 	
 protected:
 	// begin AActor interface
@@ -55,7 +60,7 @@ private:
 	int32 Defeats = 0;
 	UPROPERTY(ReplicatedUsing=OnRep_Kills)
 	int32 Kills = 0;
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing=OnRep_Team)
 	ETeam Team = ETeam::ET_NoneTeam;
 	
 public:
@@ -64,6 +69,7 @@ public:
 	FORCEINLINE int32 GetKills() const { return Kills; }
 	FORCEINLINE void SetKills(const int32 InKills) { Kills = InKills; }
 	FORCEINLINE ETeam GetTeam() const { return Team; }
-	FORCEINLINE void SetTeam(const ETeam NewTeam) { Team = NewTeam; }
+	void SetTeam(const ETeam NewTeam);
+	
 	
 };

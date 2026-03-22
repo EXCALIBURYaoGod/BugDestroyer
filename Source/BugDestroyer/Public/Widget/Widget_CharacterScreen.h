@@ -54,6 +54,12 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnMatchTimeUpdated(int32 InNewMinutes, int32 InNewSeconds);
 	UFUNCTION()
+	void OnTeamScoreChangedCallback(int32 InRedTeamScore, int32 InBlueTeamScore);
+	UPROPERTY()
+	ACommonGamePlayerState* CachedPlayerState;
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_OnTeamScoreUpdated(int32 InOurTeamScore, int32 InEnemyTeamScore);
+	UFUNCTION()
 	void OnGrenadeAmountChangedCallback(int32 InCurrentGrenadeAmount);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnGrenadeAmountUpdated(int32 InCurrentGrenadeAmount);
@@ -68,7 +74,7 @@ protected:
 	UFUNCTION()
 	void OnKillMessageReceivedCallback(const FString& KillerName, const FString& VictimName, const FString& AttackWeaponName, bool bIsHeadshot);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
-	void BP_OnKillMessageReceived(const FString& KillerName, const FString& VictimName, const TSoftObjectPtr<UTexture2D>& WeaponIcon, bool bIsHeadshot);
+	void BP_OnKillMessageReceived(const FString& KillerName, const FString& VictimName, const TSoftObjectPtr<UTexture2D>& WeaponIcon, bool bIsHeadshot, bool bGeneric);
 	
 	UFUNCTION(BlueprintPure)
 	ABugCharacter* GetOwningCharacter();

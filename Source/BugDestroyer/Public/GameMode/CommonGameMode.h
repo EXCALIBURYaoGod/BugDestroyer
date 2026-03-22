@@ -28,7 +28,7 @@ public:
 	
 	virtual void PlayerEliminated(class ABugCharacter* VictimCharacter, AController* VictimController, class AController* AttackerController, AActor* Causer, bool bHeadShot);
 	virtual void RequestRespawn(ACharacter* VictimCharacter, AController* VictimController);
-	
+	virtual float CalculateActualDamage(AController* Attacker, AController* Victim, float BaseDamage);
 	
 protected:
 	virtual void PostLogin(APlayerController* NewPlayer) override;
@@ -41,7 +41,9 @@ protected:
 	void HandleCooldownMatchState();
 	FTimerHandle CooldownTimerHandle;
 	void UpdateCooldownTime();
-	void HandleMatchEnd();
+	virtual void HandleMatchEnd();
+	UFUNCTION(Exec)
+	void SetMatchTime(int32 newTime);
 	
 private:
 	UPROPERTY(EditDefaultsOnly, Category = "Match")

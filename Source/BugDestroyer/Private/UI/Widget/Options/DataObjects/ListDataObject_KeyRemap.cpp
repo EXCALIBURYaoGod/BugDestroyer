@@ -46,7 +46,31 @@ FSlateBrush UListDataObject_KeyRemap::GetIconFromCurrentKey() const
 void UListDataObject_KeyRemap::BindNewInputKey(const FKey& InNewKey)
 {
 	check(CachedOwningInputUserSettings);
+	check(CachedOwningKeyProfile);
 	
+	// 检测按键冲突
+	TArray<FName> ConflictingMappingNames;
+	int32 FoundConflicts = CachedOwningKeyProfile->GetMappingNamesForKey(InNewKey, ConflictingMappingNames);
+	FName RealConflictingActionName = NAME_None;
+	if (FoundConflicts > 0)
+	{
+		for (const FName& ConflictingName : ConflictingMappingNames)
+		{
+			if (ConflictingName != CachedOwningMappingName)
+			{
+				RealConflictingActionName = ConflictingName;
+				break;
+			}
+		}
+	}
+	if (RealConflictingActionName != NAME_None)
+	{
+		OnKeyBindConflict.Broadcast(RealConflictingActionName, InNewKey);
+		return;
+	}
+	// 检测按键冲突
+	
+	// 绑定按键
 	FMapPlayerKeyArgs KeyArgs;
 	KeyArgs.MappingName = CachedOwningMappingName;
 	KeyArgs.Slot = CachedOwningMappableKeySlot;
@@ -57,6 +81,7 @@ void UListDataObject_KeyRemap::BindNewInputKey(const FKey& InNewKey)
 	CachedOwningInputUserSettings->SaveSettings();
 	
 	NotifyListDataModified(this);
+	// 绑定按键
 }
 
 bool UListDataObject_KeyRemap::HasDefaultValue() const
@@ -80,6 +105,28 @@ bool UListDataObject_KeyRemap::TryResetBackToDefaultValue()
 		return true;
 	}
 	return Super::TryResetBackToDefaultValue();
+}
+
+void UListDataObject_KeyRemap::ForceBindInputKey(FName ConflictingActionName, const FKey& InNewKey)
+{
+	check(CachedOwningInputUserSettings);
+
+	FGameplayTagContainer FailureReason;
+	
+	FMapPlayerKeyArgs UnmapArgs;
+	UnmapArgs.MappingName = ConflictingActionName;
+	UnmapArgs.NewKey = InNewKey;
+	UnmapArgs.Slot = EPlayerMappableKeySlot::First; 
+	CachedOwningInputUserSettings->UnMapPlayerKey(UnmapArgs, FailureReason);
+	
+	FMapPlayerKeyArgs MapArgs;
+	MapArgs.MappingName = CachedOwningMappingName;
+	MapArgs.Slot = CachedOwningMappableKeySlot;
+	MapArgs.NewKey = InNewKey;
+	CachedOwningInputUserSettings->MapPlayerKey(MapArgs, FailureReason);
+	
+	CachedOwningInputUserSettings->SaveSettings();
+	NotifyListDataModified(this);
 }
 
 FPlayerKeyMapping* UListDataObject_KeyRemap::GetOwningKeyMapping() const

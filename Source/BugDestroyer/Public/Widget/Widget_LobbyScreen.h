@@ -46,5 +46,7 @@ private:
 	
 	// 缓存 GameState 指针
 	TWeakObjectPtr<ALobbyGameState> LobbyGameState;
+	FTimerHandle WaitGameStateTimer;
+	void TryBindGameState();
 	
 };

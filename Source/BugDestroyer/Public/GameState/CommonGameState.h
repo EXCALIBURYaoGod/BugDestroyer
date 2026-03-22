@@ -11,7 +11,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMatchTimeUpdated, int32, Minutes
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWarmupTimeUpdated, int32, Minutes, int32, Seconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCooldownTimeUpdated, int32, Minutes, int32, Seconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMVPNameUpdated, const FText&, WinnerNames);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWinnerTeamUpdated, const FText&, WinnerTeam);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnKillMessageBroadcast, const FString&, KillerName, const FString&, VictimName, const FString&, WeaponName, bool, bIsHeadshot);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTeamScoreUpdated, int32, RedTeamScore, int32, BlueTeamScore);
+
 
 /**
  * 通用比赛状态类，负责存储全局比赛数据
@@ -37,8 +40,16 @@ public:
 	FOnCooldownTimeUpdated OnCooldownTimeUpdated;
 	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
 	FOnMVPNameUpdated OnMVPNameUpdated;
-
+	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
+	FOnTeamScoreUpdated OnTeamScoreUpdated;
+	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
+	FOnWinnerTeamUpdated OnWinnerTeamUpdated;
+	
 	// == Teams == //
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Teams|Match")
+	int32 WinningScore = 100;
+	UPROPERTY(ReplicatedUsing= OnRep_WinnerTeam, VisibleAnywhere, Category = "Teams|Match")
+	FText WinnerTeam;
 	UPROPERTY(VisibleAnywhere, Category = "Teams|Match")
 	TArray<ACommonGamePlayerState*> RedTeam;
 	UPROPERTY(VisibleAnywhere, Category = "Teams|Match")
@@ -47,14 +58,19 @@ public:
 	int32 RedTeamScore;
 	UPROPERTY(ReplicatedUsing=OnRep_BlueTeamScore)
 	int32 BlueTeamScore;
+	void AddToRedTeamScore();
+	void AddToBlueTeamScore();
 	UFUNCTION()
 	void OnRep_RedTeamScore();
 	UFUNCTION()
 	void OnRep_BlueTeamScore();
+	UFUNCTION()
+	void OnRep_WinnerTeam();
 	// == Teams == //
 	
 protected:
 	virtual void BeginPlay() override;
+	virtual void OnRep_MatchState() override;
 	
 private:
 	UPROPERTY(ReplicatedUsing = OnRep_MatchTime, BlueprintReadOnly, VisibleAnywhere, Category = "Match", meta = (AllowPrivateAccess = true))

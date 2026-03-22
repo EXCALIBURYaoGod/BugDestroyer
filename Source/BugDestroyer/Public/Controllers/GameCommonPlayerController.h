@@ -23,14 +23,14 @@ class BUGDESTROYER_API AGameCommonPlayerController : public APlayerController
 public:
 	AGameCommonPlayerController();
 	
-	UFUNCTION(Client, Reliable)
-	void ClientSetMatchState(FName NewState);
+	void OnMatchStateUpdated(FName NewState);
 	UFUNCTION(Client, Reliable)
 	void Client_ShowMatchCooldown(const FText& WinnerNames);
 	void ShowSniperScopeWidget(bool bIsShow);
 	
 protected:
 	// Begin APlayerController Interface
+	virtual void PostSeamlessTravel() override;
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* aPawn) override;
 	virtual void AcknowledgePossession(APawn* aPawn) override;
@@ -39,6 +39,7 @@ protected:
 	// End APlayerController Interface
 	
 	void InitUIWithCharacter(APawn* InPawn);
+	void OnGameStateSetAfterTravel(AGameStateBase* GameStateBase);
 	void CreatePrimaryLayout();
 	void PushMatchBeforeStartScreen();
 	void PushCharacterScreen(APawn* InPawn);
@@ -49,6 +50,8 @@ protected:
 	void UpdateNetworkStats();
 	UFUNCTION(Server, Reliable)
 	void ServerSetWeaponSSR(bool bEnableSSR);
+	UFUNCTION(Exec)
+	void ToggleSSR(bool bEnableSSR);
 	FTimerHandle NetStatTimerHandle;
 	UPROPERTY(BlueprintReadOnly, Category = "Network", meta = (AllowPrivateAccess = true))
 	float CurrentPing;
@@ -91,11 +94,13 @@ private:
 	void ClientReportServerTime(float ClientRequestTime, float TimeServerReceived);
 	void CheckTimeSync();
 	float ClientServerDelta;
+	float SingleTripTime;
 	int32 SyncCount;
 	FTimerHandle TimeSyncTimer;
 	// == 客户端与服务端的时钟同步 == //
 	
 public:
 	FORCEINLINE float GetClientServerDelta() const { return ClientServerDelta; }
+	FORCEINLINE float GetSingleTripTime() const { return SingleTripTime; }
 	
 };

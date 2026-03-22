@@ -12,6 +12,7 @@
 #include "GameFramework/GameMode.h"
 #include "GameFramework/PlayerState.h"
 #include "GameMode/CommonGameMode.h"
+#include "GameState/CommonGameState.h"
 #include "UI/Subsystems/BugUISubsystem.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 #include "Weapons/Weapon.h"
@@ -22,31 +23,30 @@ AGameCommonPlayerController::AGameCommonPlayerController()
 {
 }
 
-void AGameCommonPlayerController::ClientSetMatchState_Implementation(FName NewState)
+void AGameCommonPlayerController::OnMatchStateUpdated(FName NewState)
 {
 	MatchState = NewState;
-	
+    
 	if (IsLocalPlayerController())
 	{
-        
-        if (MatchState == MatchState::WaitingToStart)
-        {
-        	PushMatchBeforeStartScreen(); 
-        }
-        else if (MatchState == MatchState::InProgress)
-        {
-        	if (!bCharacterScreenPushed && GetPawn())
-        	{
-        		PushCharacterScreen(GetPawn());
-        	}
-        }
-        else if (MatchState == MatchState::Cooldown)
-        {
-	        HandleMatchCooldownState();
-        }
+		CreatePrimaryLayout();
+		if (MatchState == MatchState::WaitingToStart)
+		{
+			bCharacterScreenPushed = false;
+			PushMatchBeforeStartScreen(); 
+		}
+		else if (MatchState == MatchState::InProgress)
+		{
+			if (!bCharacterScreenPushed && GetPawn())
+			{
+				PushCharacterScreen(GetPawn());
+			}
+		}
+		else if (MatchState == MatchState::Cooldown)
+		{
+			HandleMatchCooldownState();
+		}
 	}
-	
-	
 }
 
 void AGameCommonPlayerController::Client_ShowMatchCooldown_Implementation(const FText& WinnerNames)
@@ -99,10 +99,25 @@ void AGameCommonPlayerController::ShowSniperScopeWidget(bool bIsShow)
 	}
 }
 
+void AGameCommonPlayerController::PostSeamlessTravel()
+{
+	Super::PostSeamlessTravel();
+	if (IsLocalPlayerController())
+	{
+		if (ACommonGameState* GS = GetWorld()->GetGameState<ACommonGameState>())
+		{
+			OnMatchStateUpdated(GS->GetMatchState());
+		}
+		else
+		{
+			GetWorld()->GameStateSetEvent.AddUObject(this, &ThisClass::OnGameStateSetAfterTravel);
+		}
+	}
+}
+
 void AGameCommonPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-	bCharacterScreenPushed = false;
 	GetWorldTimerManager().SetTimer(TimeSyncTimer, this, &ThisClass::CheckTimeSync, 0.5f, true);
 	if (IsLocalPlayerController())
 	{
@@ -130,12 +145,20 @@ void AGameCommonPlayerController::AcknowledgePossession(APawn* aPawn)
 	}
 }
 
+// 每个PC仅执行一次
 void AGameCommonPlayerController::ReceivedPlayer()
 {
 	Super::ReceivedPlayer();
 	if (IsLocalPlayerController())
 	{
-		CreatePrimaryLayout();
+		if (ACommonGameState* GS = GetWorld()->GetGameState<ACommonGameState>())
+		{
+			OnMatchStateUpdated(GS->GetMatchState());
+		}
+		else
+		{
+			GetWorld()->GameStateSetEvent.AddUObject(this, &ThisClass::OnGameStateSetAfterTravel);
+		}
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
 			UEnhancedInputUserSettings* UserSettings = Subsystem->GetUserSettings();
@@ -186,6 +209,15 @@ void AGameCommonPlayerController::InitUIWithCharacter(APawn* InPawn)
 
 }
 
+void AGameCommonPlayerController::OnGameStateSetAfterTravel(AGameStateBase* GameStateBase)
+{
+	GetWorld()->GameStateSetEvent.RemoveAll(this);
+	if (ACommonGameState* GS = Cast<ACommonGameState>(GameStateBase))
+	{
+		OnMatchStateUpdated(GS->GetMatchState());
+	}
+}
+
 void AGameCommonPlayerController::CreatePrimaryLayout()
 {
 
@@ -193,6 +225,28 @@ void AGameCommonPlayerController::CreatePrimaryLayout()
 	{
 		return;
 	}
+	UBugUISubsystem* UISubsystem = UBugUISubsystem::Get(this);
+	if (!UISubsystem) return;
+
+	UWidget_PrimaryLayout* ExistingLayout = UISubsystem->GetCreatedPrimaryLayout();
+	
+	if (ExistingLayout)
+	{
+		if (!IsValid(ExistingLayout) || ExistingLayout->GetOwningPlayer() != this || !ExistingLayout->IsInViewport())
+		{
+			if (IsValid(ExistingLayout)) 
+			{
+				ExistingLayout->RemoveFromParent();
+			}
+			UISubsystem->UnRegisterCreatedPrimaryLayoutWidget(ExistingLayout);
+			ExistingLayout = nullptr;
+		}
+		else
+		{
+			return; 
+		}
+	}
+	
 	if (GamePrimaryLayout)
 	{
 		UWidget_PrimaryLayout* PrimaryLayoutWidget = CreateWidget<UWidget_PrimaryLayout>(this, GamePrimaryLayout);
@@ -206,6 +260,7 @@ void AGameCommonPlayerController::CreatePrimaryLayout()
 
 void AGameCommonPlayerController::PushMatchBeforeStartScreen()
 {
+	CreatePrimaryLayout();
 	UBugUISubsystem::Get(this)->PushSoftWidgetToStackAsync(
 		BugGameplayTags::Bug_WidgetStack_GameHud, 
 		UBugUIFunctionLibrary::GetSoftWidgetClassByTag(BugGameplayTags::Bug_Widget_MatchBeforeStartScreen)
@@ -214,6 +269,7 @@ void AGameCommonPlayerController::PushMatchBeforeStartScreen()
 
 void AGameCommonPlayerController::PushCharacterScreen(APawn* InPawn)
 {
+	CreatePrimaryLayout();
 	bCharacterScreenPushed = true;
 	UBugUISubsystem::Get(this)->PushSoftWidgetToStackAsync(
 	    BugGameplayTags::Bug_WidgetStack_GameHud, 
@@ -269,7 +325,8 @@ void AGameCommonPlayerController::ClientReportServerTime_Implementation(float Cl
                                                                         float TimeServerReceived)
 {
 	float RoundTripTime = GetWorld()->GetTimeSeconds() - ClientRequestTime;
-	float CurrentServerTime = TimeServerReceived + (0.5f * RoundTripTime);
+	SingleTripTime = 0.5f * RoundTripTime;
+	float CurrentServerTime = TimeServerReceived + SingleTripTime;
 	ClientServerDelta = CurrentServerTime - GetWorld()->GetTimeSeconds();
 }
 
@@ -299,9 +356,10 @@ void AGameCommonPlayerController::UpdateNetworkStats()
 	}
 	
 	bool bShouldWarn = (CurrentPing > 200.f || PacketLossPercentage > 5.f);
-	if (bShouldWarn)
+	bool bNotShouldSSR = (CurrentPing > 500.f || PacketLossPercentage > 5.f);
+	if (bNotShouldSSR)
 	{
-		
+		ServerSetWeaponSSR(false);
 	}
 	if (bLastNetWarning != bShouldWarn)
 	{
@@ -309,7 +367,38 @@ void AGameCommonPlayerController::UpdateNetworkStats()
 		if (ABugCharacter* BugChar = Cast<ABugCharacter>(GetPawn()))
 		{
 			BugChar->OnNetWarning.Broadcast(bShouldWarn);
-			ServerSetWeaponSSR(bShouldWarn);
+		}
+	}
+}
+
+void AGameCommonPlayerController::ToggleSSR(bool bEnableSSR)
+{
+	if (HasAuthority())
+	{
+
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(It->Get()))
+			{
+				if (ABugCharacter* BugCharacter = Cast<ABugCharacter>(PC->GetPawn()))
+				{
+					if (AWeapon* EquippedWeapon = BugCharacter->GetEquippedWeapon())
+					{
+						if (EquippedWeapon->bDefaultUseSSR)
+						{
+							EquippedWeapon->SetServerSideRewind(bEnableSSR);
+						}
+					}
+				}
+			}
+		}
+		
+		if (GEngine)
+		{
+			FColor MsgColor = bEnableSSR ? FColor::Green : FColor::Red;
+			FString MsgText = FString::Printf(TEXT("ListenServer Command: Server-Side Rewind is now %s!"), bEnableSSR ? TEXT("ON") : TEXT("OFF"));
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, MsgColor, MsgText);
+			UE_LOG(LogTemp, Warning, TEXT("%s"), *MsgText);
 		}
 	}
 }

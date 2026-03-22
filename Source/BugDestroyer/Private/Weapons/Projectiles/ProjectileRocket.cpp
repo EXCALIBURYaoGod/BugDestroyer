@@ -3,10 +3,12 @@
 
 #include "Weapons/Projectiles/ProjectileRocket.h"
 
+#include "DebugHelper.h"
 #include "NiagaraComponent.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/AudioComponent.h"
+#include "Weapons/Weapon.h"
 
 
 AProjectileRocket::AProjectileRocket()
@@ -38,18 +40,21 @@ void AProjectileRocket::ApplyRadiaDamageFromImpactData(const FImpactEffectData* 
 	{
 		if (AController* FiringController = FiringPawn->GetController())
 		{
+			TArray<AActor*> IgnoredActors;
+			IgnoredActors.Add(this); 
+
 			UGameplayStatics::ApplyRadialDamageWithFalloff(
-				this,
-				SelectedData->ImpactDamage,
-				MinimumDamage,
-				GetActorLocation(),
-				DamageInnerRadius,
-				DamageOuterRadius,
-				DamageFalloff,
-				UDamageType::StaticClass(),
-				TArray<AActor*>(),
-				this,
-				FiringController
+			   this,
+			   SelectedData->ImpactDamage,
+			   MinimumDamage,
+			   GetActorLocation(),
+			   DamageInnerRadius,
+			   DamageOuterRadius,
+			   DamageFalloff,
+			   UDamageType::StaticClass(),
+			   IgnoredActors,  
+			   GetOwner(),          
+			   FiringController
 			);
 		}
 	}

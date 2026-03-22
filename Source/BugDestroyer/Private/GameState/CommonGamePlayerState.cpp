@@ -32,6 +32,11 @@ void ACommonGamePlayerState::OnRep_Kills()
 	OnKillsChanged.Broadcast(GetKills());
 }
 
+void ACommonGamePlayerState::OnRep_Team()
+{
+	OnTeamUpdatedDelegate.Broadcast(Team);
+}
+
 void ACommonGamePlayerState::AddToDefeats(int32 InDefeats)
 {
 	if (HasAuthority())
@@ -62,6 +67,15 @@ void ACommonGamePlayerState::HandleOnPawnSet(APlayerState* Player, APawn* NewPaw
 	{
 		GameCommonPC = Cast<AGameCommonPlayerController>(NewPawn->GetController());
 	}
+}
+
+void ACommonGamePlayerState::SetTeam(const ETeam NewTeam)
+{
+	Team = NewTeam;
+	if (HasAuthority())
+	{
+		OnTeamUpdatedDelegate.Broadcast(Team);
+	} 
 }
 
 

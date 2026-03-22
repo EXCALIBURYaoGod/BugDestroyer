@@ -3,6 +3,8 @@
 
 #include "GameState/CommonGameState.h"
 
+#include "Controllers/GameCommonPlayerController.h"
+#include "GameMode/CommonGameMode.h"
 #include "Net/UnrealNetwork.h"
 
 ACommonGameState::ACommonGameState()
@@ -17,6 +19,7 @@ void ACommonGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ACommonGameState, MatchTime);
 	DOREPLIFETIME(ACommonGameState, WarmupTime);
 	DOREPLIFETIME(ACommonGameState, CooldownTime);
+	DOREPLIFETIME(ACommonGameState, WinnerTeam);
 	
 }
 
@@ -26,19 +29,55 @@ void ACommonGameState::Multicast_BroadcastKillMessage_Implementation(const FStri
 	OnKillMessageBroadcast.Broadcast(KillerName, VictimName, WeaponName, bIsHeadshot);
 }
 
+void ACommonGameState::AddToRedTeamScore()
+{
+	++RedTeamScore;
+	OnTeamScoreUpdated.Broadcast(RedTeamScore, BlueTeamScore);
+}
+
+void ACommonGameState::AddToBlueTeamScore()
+{
+	++BlueTeamScore;
+	OnTeamScoreUpdated.Broadcast(RedTeamScore, BlueTeamScore);
+}
+
 void ACommonGameState::OnRep_RedTeamScore()
 {
-	
+	OnTeamScoreUpdated.Broadcast(RedTeamScore, BlueTeamScore);
 }
 
 void ACommonGameState::OnRep_BlueTeamScore()
 {
-	
+	OnTeamScoreUpdated.Broadcast(RedTeamScore, BlueTeamScore);
+}
+
+void ACommonGameState::OnRep_WinnerTeam()
+{
+	OnWinnerTeamUpdated.Broadcast(WinnerTeam);
 }
 
 void ACommonGameState::BeginPlay()
 {
 	Super::BeginPlay();
+}
+
+void ACommonGameState::OnRep_MatchState()
+{
+	Super::OnRep_MatchState();
+	if (GetWorld())
+	{
+
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(It->Get()))
+			{
+				if (PC->IsLocalPlayerController())
+				{
+					PC->OnMatchStateUpdated(MatchState);
+				}
+			}
+		}
+	}
 }
 
 void ACommonGameState::OnRep_MatchTime()

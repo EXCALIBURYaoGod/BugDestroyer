@@ -35,6 +35,11 @@ void UWidget_MatchCooldownScreen::OnCooldownTimeChangedCallback(int32 InNewMinut
 	BP_OnCooldownTimeUpdated(InNewMinutes, InNewSeconds);
 }
 
+void UWidget_MatchCooldownScreen::OnWinnerTeamChangedCallback(const FText& WinnerTeam)
+{
+	BP_OnWinnerTeamUpdated(WinnerTeam);
+}
+
 void UWidget_MatchCooldownScreen::OnWinnerNameChangedCallback(const FText& WinnerNames)
 {
 	BP_OnWinnerNameUpdated(WinnerNames);
@@ -43,11 +48,13 @@ void UWidget_MatchCooldownScreen::OnWinnerNameChangedCallback(const FText& Winne
 void UWidget_MatchCooldownScreen::SetupGameStateBindings(ACommonGameState* GS)
 {
 	GS->OnCooldownTimeUpdated.AddUniqueDynamic(this, &ThisClass::OnCooldownTimeChangedCallback);
+	GS->OnWinnerTeamUpdated.AddUniqueDynamic(this, &ThisClass::OnWinnerTeamChangedCallback);
 	int32 M, S;
 	int32 CooldownTime = GS->GetCooldownTime();
 	M = CooldownTime / 60;
 	S = CooldownTime % 60;
 	OnCooldownTimeChangedCallback(M, S);
+	OnWinnerTeamChangedCallback(GS->WinnerTeam);
 }
 
 void UWidget_MatchCooldownScreen::OnGameStateSet(AGameStateBase* GameStateBase)

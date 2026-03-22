@@ -15,11 +15,8 @@
 void UWidget_LobbyScreen::NativeConstruct()
 {
 	Super::NativeConstruct();
-	// 1. 处理按钮可见性 (只有服务器房主能看到)
 	if (CommonButton_StartGame)
 	{
-		// GetOwningPlayer 检查是否拥有权限 (HasAuthority)
-		// 注意：UI 永远归 Client 所有，但我们需要检查这个 Client 是否也是 Host
 		APlayerController* PC = GetOwningPlayer();
 		if (PC && PC->HasAuthority()) 
 		{
@@ -27,23 +24,13 @@ void UWidget_LobbyScreen::NativeConstruct()
 		}
 		else
 		{
-			// 客户端隐藏按钮
 			CommonButton_StartGame->SetVisibility(ESlateVisibility::Collapsed);
 		}
 	}
 
-	// 2. 绑定 GameState 数据
-	AGameStateBase* GS = UGameplayStatics::GetGameState(this);
-	LobbyGameState = Cast<ALobbyGameState>(GS);
-
-	if (LobbyGameState.IsValid())
-	{
-		// 绑定委托
-		LobbyGameState->OnPlayerCountChanged.AddUniqueDynamic(this, &ThisClass::UpdatePlayerCount);
-        
-		// 第一次手动更新 (防止进房间时 UI 是空的)
-		UpdatePlayerCount(LobbyGameState->CurrentPlayerCount);
-	}
+	// 2. 不要在这里直接获取，因为客户端此时 GameState 大概率为 null
+	// 开启一个每 0.1 秒执行一次的循环定时器，去尝试获取 GameState
+	GetWorld()->GetTimerManager().SetTimer(WaitGameStateTimer, this, &ThisClass::TryBindGameState, 0.1f, true);
 	
 }
 
@@ -90,6 +77,19 @@ void UWidget_LobbyScreen::OnStartGameClicked()
 		PC->SetInputMode(InputMode);
 		PC->bShowMouseCursor = false;
 		PC->RequestStartGameToUI();
+	}
+}
+
+void UWidget_LobbyScreen::TryBindGameState()
+{
+	AGameStateBase* GS = UGameplayStatics::GetGameState(this);
+	LobbyGameState = Cast<ALobbyGameState>(GS);
+	
+	if (LobbyGameState.IsValid())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(WaitGameStateTimer);
+		LobbyGameState->OnPlayerCountChanged.AddUniqueDynamic(this, &ThisClass::UpdatePlayerCount);
+		UpdatePlayerCount(LobbyGameState->CurrentPlayerCount);
 	}
 }
 

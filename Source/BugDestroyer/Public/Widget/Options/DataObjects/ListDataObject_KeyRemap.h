@@ -8,6 +8,8 @@
 #include "UserSettings/EnhancedInputUserSettings.h"
 #include "ListDataObject_KeyRemap.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnKeyBindConflict, FName, ConflictingActionName, FKey, AttemptedKey);
+
 class UEnhancedPlayerMappableKeyProfile;
 class UEnhancedInputUserSettings;
 /**
@@ -33,6 +35,10 @@ public:
 	virtual bool CanResetBackToDefaultValue() const override;
 	virtual bool TryResetBackToDefaultValue() override;
 	//end UListDataObject_Base interface
+	
+	UPROPERTY(BlueprintAssignable, Category = "Key Remap")
+	FOnKeyBindConflict OnKeyBindConflict;
+	void ForceBindInputKey(FName ConflictingActionName, const FKey& InNewKey);
 	
 private:
 	FPlayerKeyMapping* GetOwningKeyMapping() const;

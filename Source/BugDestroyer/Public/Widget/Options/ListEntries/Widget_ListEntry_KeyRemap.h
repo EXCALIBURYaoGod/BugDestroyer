@@ -26,6 +26,9 @@ protected:
 	virtual void OnOwningListDataObjectModified(UListDataObject_Base* OwningListDataObject, EOptionsListDataModifyReason ModifyReason) override;
 	// end UWidget_ListEntry_Base interface
 	
+	UFUNCTION()
+	void HandleKeyBindConflict(FName ConflictingActionName, FKey AttemptedKey);
+	
 private:
 	void OnRemapKeyButtonClicked();
 	void OnResetKeyBindingButtonClicked();

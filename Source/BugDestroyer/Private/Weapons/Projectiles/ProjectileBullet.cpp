@@ -6,6 +6,7 @@
 #include "DebugHelper.h"
 #include "GameplayTagAssetInterface.h"
 #include "Character/BugCharacter.h"
+#include "Controllers/GameCommonPlayerController.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -80,12 +81,18 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 			HitCharacter->GetHit(Hit.ImpactPoint);
 			if (DamageCauser && HitCharacter)
 			{
-				ServerProjectileHitRequest(HitCharacter, 
-					InitialSpawnLocation, 
-					ProjectileMovementComponent->Velocity,
-					GetWorld()->GetTimeSeconds(), 
-					DamageCauser
-					);
+				if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(GetInstigatorController()))
+				{
+					float SyncedServerTime = GetWorld()->GetTimeSeconds() + PC->GetClientServerDelta(); 
+					float SSR_HitTime = SyncedServerTime - PC->GetSingleTripTime();
+					ServerProjectileHitRequest(
+						HitCharacter, 
+						InitialSpawnLocation, 
+						ProjectileMovementComponent->Velocity,
+						SSR_HitTime, 
+						DamageCauser
+								);
+				}
 			}
 		}
 	}

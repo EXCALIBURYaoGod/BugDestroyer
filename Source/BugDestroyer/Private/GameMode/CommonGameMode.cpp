@@ -3,16 +3,14 @@
 
 #include "GameMode/CommonGameMode.h"
 
-#include "BugGameplayTags.h"
-#include "BugUIFunctionLibrary.h"
-#include "DebugHelper.h"
+#include "OnlineSubsystem.h"
 #include "Character/BugCharacter.h"
 #include "GameFramework/PlayerStart.h"
 #include "GameState/CommonGamePlayerState.h"
 #include "GameState/CommonGameState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Controllers/GameCommonPlayerController.h"
-#include "UI/Subsystems/BugUISubsystem.h"
+#include "Interfaces/OnlineIdentityInterface.h"
 #include "Weapons/Weapon.h"
 
 namespace MatchState
@@ -51,6 +49,7 @@ void ACommonGameMode::Tick(float DeltaTime)
 void ACommonGameMode::HandleMatchHasStarted()
 {
 	Super::HandleMatchHasStarted();
+	
 }
 
 void ACommonGameMode::BroadcastElimAnnouncement(AController* VictimController, class AController* AttackerController, AActor* Causer, bool bHeadShot)
@@ -111,21 +110,18 @@ void ACommonGameMode::RequestRespawn(ACharacter* VictimCharacter, AController* V
 	
 }
 
+float ACommonGameMode::CalculateActualDamage(AController* Attacker, AController* Victim, float BaseDamage)
+{
+	return BaseDamage;
+}
+
 void ACommonGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
 	
 	if (AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(NewPlayer))
 	{
-		PC->ClientSetMatchState(MatchState);
-		if (PC->IsLocalPlayerController())
-		{
-			if (ACommonGamePlayerState* PS = PC->GetPlayerState<ACommonGamePlayerState>())
-            {
-            	PS->SetPlayerName(TEXT("FpsLuping"));
-            }
-		}
-
+		PC->OnMatchStateUpdated(MatchState);
 	}
 	
 }
@@ -172,7 +168,14 @@ void ACommonGameMode::UpdateWarmupTime()
 void ACommonGameMode::HandleCooldownMatchState()
 {
 	GetWorldTimerManager().ClearTimer(CooldownTimerHandle);
-	RestartGame();
+	bUseSeamlessTravel = true;
+	
+	FString CurrentMapName = UGameplayStatics::GetCurrentLevelName(this, false);
+	FString TravelURL = FString::Printf(TEXT("%s?listen"), *CurrentMapName);
+	if (GetWorld())
+	{
+		GetWorld()->ServerTravel(TravelURL);
+	}
 }
 
 void ACommonGameMode::UpdateCooldownTime()
@@ -229,15 +232,19 @@ void ACommonGameMode::HandleMatchEnd()
 	GetWorldTimerManager().SetTimer(CooldownTimerHandle, this, &ACommonGameMode::UpdateCooldownTime, 1.0f, true);
 }
 
+void ACommonGameMode::SetMatchTime(int32 newTime)
+{
+	MatchTime = newTime;
+}
+
 void ACommonGameMode::OnMatchStateSet()
 {
 	Super::OnMatchStateSet();
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	if (AGameCommonPlayerController* HostPC = Cast<AGameCommonPlayerController>(GetWorld()->GetFirstPlayerController()))
 	{
-		AGameCommonPlayerController* PC = Cast<AGameCommonPlayerController>(It->Get());
-		if (PC)
+		if (HostPC->IsLocalPlayerController())
 		{
-			PC->ClientSetMatchState(MatchState);
+			HostPC->OnMatchStateUpdated(MatchState);
 		}
 	}
 }

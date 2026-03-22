@@ -21,6 +21,7 @@
 #include "Net/UnrealNetwork.h"
 #include "Weapons/Weapon.h"
 #include "Engine/NetConnection.h"
+#include "GameState/CommonGamePlayerState.h"
 
 
 ABugCharacter::ABugCharacter()
@@ -103,6 +104,12 @@ void ABugCharacter::PostInitializeComponents()
 	}
 }
 
+void ABugCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+	InitTeamBinding();
+}
+
 void ABugCharacter::PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount)
 {
 	if (CombatComponent)
@@ -120,6 +127,19 @@ FVector ABugCharacter::CalculateLocalHitTarget()
 	return GetActorLocation() + GetActorForwardVector() * 80000.f;
 }
 
+void ABugCharacter::ApplyMaterialByTeam(ETeam MyTeam)
+{
+	if (MyTeam == ETeam::ET_NoneTeam) return;
+	if (FTeamMaterialSet* FoundTeamSet = TeamMaterialMap.Find(MyTeam))
+	{
+		for (const auto& Pair : FoundTeamSet->SlotSpecificMaterials)
+		{
+			UMaterialInstanceDynamic* DynamicMat = UMaterialInstanceDynamic::Create(Pair.Value, this);
+			GetMesh()->SetMaterialByName(Pair.Key, DynamicMat);
+		}
+	}
+}
+
 void ABugCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -133,7 +153,20 @@ void ABugCharacter::BeginPlay()
 	{
 		AttachedGrenadeMesh->SetVisibility(false);
 	}
-	
+
+}
+
+void ABugCharacter::InitTeamBinding()
+{
+	ACommonGamePlayerState* BugPS = GetPlayerState<ACommonGamePlayerState>();
+	if (BugPS)
+	{
+		BugPS->OnTeamUpdatedDelegate.AddUniqueDynamic(this, &ABugCharacter::ApplyMaterialByTeam);
+		if (BugPS->GetTeam() != ETeam::ET_NoneTeam)
+		{
+			ApplyMaterialByTeam(BugPS->GetTeam());
+		}
+	}
 }
 
 
@@ -169,6 +202,12 @@ void ABugCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& 
 	DOREPLIFETIME_CONDITION(ABugCharacter, OverlappingWeapon, COND_OwnerOnly);
 	DOREPLIFETIME(ABugCharacter, CurrentHealth);
 	DOREPLIFETIME(ABugCharacter, ProjectileImpactPoint);
+}
+
+void ABugCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	InitTeamBinding();
 }
 
 void ABugCharacter::Move(const FInputActionValue& Value)
@@ -344,6 +383,7 @@ void ABugCharacter::SwapButtonPressed()
 
 void ABugCharacter::Jump()
 {
+	StopSprint();
 	if (bIsCrouched)
 	{
 		UnCrouch();
@@ -357,10 +397,14 @@ void ABugCharacter::Jump()
 
 float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
 {
-	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (bElimmed) return 0.0f;
+	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (HasAuthority())
 	{
+		if (ACommonGameMode* CommonGameMode = Cast<ACommonGameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			ActualDamage = CommonGameMode->CalculateActualDamage(EventInstigator, GetController(), ActualDamage);
+		}
 		float DamageToHealth = ActualDamage;
 		if (DamageEvent.IsOfType(FRadialDamageEvent::ClassID))
 		{
@@ -381,18 +425,17 @@ float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& D
 		}
 		if (GetCurrentShield() > 0.f)
 		{
-			if (GetCurrentShield() >= ActualDamage)
+			if (GetCurrentShield() >= DamageToHealth)
 			{
-				SetCurrentShield(FMath::Clamp(GetCurrentShield() - ActualDamage, 0.f, GetMaxShield()));
-				DamageToHealth = 0.f;
-				OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
+				SetCurrentShield(GetCurrentShield() - DamageToHealth);
+				DamageToHealth = 0.f; 
 			}
 			else
 			{
-				DamageToHealth = FMath::Clamp(DamageToHealth - GetCurrentShield(), 0.f, ActualDamage);
-				SetCurrentShield(0.f);
-				OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
+				DamageToHealth -= GetCurrentShield();
+				SetCurrentShield(0.f); 
 			}
+			OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
 		}
 		CurrentHealth = FMath::Clamp(CurrentHealth - DamageToHealth, 0.f, MaxHealth);
 		OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
@@ -497,7 +540,7 @@ void ABugCharacter::StartDissolve()
 	{
 		if (DeathMontage)
 		{
-			int32 SectionIndex = DeathMontage->GetSectionIndex(FName(TEXT("FromFront3")));
+			int32 SectionIndex = DeathMontage->GetSectionIndex(FName(TEXT("FromFront3"))); //最短时长的片段
 			if (SectionIndex != INDEX_NONE)
 			{
 				float SectionLength = DeathMontage->GetSectionLength(SectionIndex);
@@ -784,22 +827,30 @@ void ABugCharacter::MulticastRPC_EliminateCharacter_Implementation()
 	int32 NumMaterials = GetMesh()->GetNumMaterials();
 	DynamicDissolveInstances.Empty();
 	USkinnedAsset* SkinnedAsset = GetMesh()->GetSkinnedAsset();
-	
-	for (int32 i = 0; i < NumMaterials; ++i)
+	ACommonGamePlayerState* BugPS = GetPlayerState<ACommonGamePlayerState>();
+	if (BugPS)
 	{
-		FName SlotName = SkinnedAsset->GetMaterials()[i].MaterialSlotName;
-		UMaterialInterface** FoundMat = SlotSpecificDissolveMaterials.Find(SlotName);
-        
-		if (FoundMat && *FoundMat)
+		ETeam MyTeam = BugPS->GetTeam();
+		if (FTeamMaterialSet* FoundTeamSet = TeamDissolveMaterialMap.Find(MyTeam))
 		{
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(*FoundMat, this);
-			GetMesh()->SetMaterial(i, MID);
-			DynamicDissolveInstances.Add(MID);
-			MID->SetScalarParameterValue(TEXT("Dissolve"), -0.5f);
-			MID->SetScalarParameterValue(TEXT("Glow"), 100.f);
+			TMap<FName, UMaterialInterface*> SlotSpecificDissolveMaterials = FoundTeamSet->SlotSpecificMaterials;
+			for (int32 i = 0; i < NumMaterials; ++i)
+			{
+				FName SlotName = SkinnedAsset->GetMaterials()[i].MaterialSlotName;
+				UMaterialInterface** FoundMat = SlotSpecificDissolveMaterials.Find(SlotName);
+        
+				if (FoundMat && *FoundMat)
+				{
+					UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(*FoundMat, this);
+					GetMesh()->SetMaterial(i, MID);
+					DynamicDissolveInstances.Add(MID);
+					MID->SetScalarParameterValue(TEXT("Dissolve"), -0.5f);
+					MID->SetScalarParameterValue(TEXT("Glow"), 100.f);
+				}
+			}
+			StartDissolve();
 		}
 	}
-	StartDissolve();
 	
 	
 }

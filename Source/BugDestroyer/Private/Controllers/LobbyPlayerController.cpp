@@ -31,6 +31,12 @@ void ALobbyPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	
 }
 
+void ALobbyPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	
+}
+
 void ALobbyPlayerController::RPC_RequestStartGame_Implementation()
 {	
 

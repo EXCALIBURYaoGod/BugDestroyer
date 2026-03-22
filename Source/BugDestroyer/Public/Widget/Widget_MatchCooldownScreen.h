@@ -25,6 +25,10 @@ protected:
 	void OnCooldownTimeChangedCallback(int32 InNewMinutes, int32 InNewSeconds);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnCooldownTimeUpdated(int32 InNewMinutes, int32 InNewSeconds);
+	UFUNCTION()
+	void OnWinnerTeamChangedCallback(const FText& WinnerTeam);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_OnWinnerTeamUpdated(const FText& WinnerTeam);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnWinnerNameUpdated(const FText& WinnerNames);
 	

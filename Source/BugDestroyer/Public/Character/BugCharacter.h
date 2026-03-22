@@ -6,6 +6,7 @@
 #include "GameplayTagAssetInterface.h"
 #include "InputActionValue.h"
 #include "BugDestroyer/BugDestroyer.h"
+#include "BugTypes/BugEnumTypes.h"
 #include "Components/BuffComponent.h"
 #include "Components/CombatComponent.h"
 #include "Components/TimelineComponent.h"
@@ -29,6 +30,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAmmoLeftChangedSignature, int3
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrenadeAmountChangedSignature, int32, CurrentGrenade);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNetWarningSignature, bool, bIsWarning);
 
+USTRUCT(BlueprintType)
+struct FTeamMaterialSet
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap<FName, UMaterialInterface*> SlotSpecificMaterials;
+};
+
 /**
  *	当前作为快速验证原型的角色类
  * TODO: 改造为角色容器，不包含业务逻辑，仅作为容器，将各个组件模块挂载到一起
@@ -46,7 +56,12 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 	// end AActor Interface
 	
+	// begin APawn Interface
+	virtual void OnRep_PlayerState() override;
+	// end APawn Interface
+	
 	// begin Character Interface
+	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void PostInitializeComponents() override;
 	// end Character Interface
@@ -64,6 +79,9 @@ public:
 	
 protected:
 	virtual void BeginPlay() override;
+	void InitTeamBinding();
+	UFUNCTION()
+	void ApplyMaterialByTeam(ETeam MyTeam);
 	
 	// Input Actions //
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -89,6 +107,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* SwapAction;
 	bool bWantsToMove = false;
+	virtual void Jump() override;
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void PlayEquipFX();
@@ -107,10 +126,8 @@ protected:
 	void SwapButtonPressed();
 	
 	// begin Character Interface
-	virtual void Jump() override;
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	// end Character Interface
-	
 	// Input Actions //
 	
 	UPROPERTY(EditAnywhere, Category = "GameplayTags")
@@ -255,11 +272,13 @@ private:
 	void StartDissolve();
 	UFUNCTION()
 	void OnDissolveTimelineFinished();
-	UPROPERTY(EditAnywhere, Category = "Combat")
+	UPROPERTY(EditAnywhere, Category = "Combat|Materials")
 	UCurveFloat* DissolveCurve;
-	UPROPERTY(EditAnywhere, Category = "Combat")
-	TMap<FName, UMaterialInterface*> SlotSpecificDissolveMaterials;
-	UPROPERTY(VisibleAnywhere, Category = "Combat")
+	UPROPERTY(EditAnywhere, Category = "Combat|Materials")
+	TMap<ETeam, FTeamMaterialSet> TeamDissolveMaterialMap;
+	UPROPERTY(EditAnywhere, Category = "Combat|Materials")
+	TMap<ETeam, FTeamMaterialSet> TeamMaterialMap;
+	UPROPERTY(VisibleAnywhere, Category = "|Materials")
 	TArray<UMaterialInstanceDynamic*> DynamicDissolveInstances;
 	// Dissolve effect
 	
