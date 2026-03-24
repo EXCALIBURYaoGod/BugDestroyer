@@ -656,45 +656,89 @@ void UOptionsDataRegistry::InitControlCollectionTab(ULocalPlayer* InOwningLocalP
 		KeyboardMouseCategoryCollection->SetDataID(FName("KeyboardMouseCategoryCollection"));
 		KeyboardMouseCategoryCollection->SetDataDisplayName(FText::FromString(TEXT("Keyboard & Mouse")));
 		
+		
+		
 		// Keyboard Mouse Inputs
 		{
-			FPlayerMappableKeyQueryOptions KeyboardMouseOnly;
-			KeyboardMouseOnly.KeyToMatch = EKeys::S;
-			KeyboardMouseOnly.bMatchBasicKeyTypes = true;
-			
-			/*FPlayerMappableKeyQueryOptions GamepadOnly;
-			GamepadOnly.KeyToMatch = EKeys::Gamepad_FaceButton_Bottom;
-			GamepadOnly.bMatchBasicKeyTypes = true;*/
-			
-			for (const auto& ProfilePair : EIUserSettings->GetAllAvailableKeyProfiles())
+			// Mouse Sensitivity
 			{
-				UEnhancedPlayerMappableKeyProfile* MappableKeyProfile = ProfilePair.Value;
-				check(MappableKeyProfile);
-				for (const auto& MappingRowPair : MappableKeyProfile->GetPlayerMappingRows())
+			    // 基础腰射灵敏度 (Base Look Sensitivity)
+			    UListDataObject_Scalar* BaseSensitivity = NewObject<UListDataObject_Scalar>();
+			    BaseSensitivity->SetDataID(FName("BaseLookSensitivity"));
+			    BaseSensitivity->SetDataDisplayName(FText::FromString(TEXT("Base Look Sensitivity")));
+			    BaseSensitivity->SetDescriptionRichText(FText::FromString(TEXT("Adjust the mouse sensitivity when not aiming.")));
+			    BaseSensitivity->SetDisplayValueRange(TRange<float>(0.1f, 10.f));
+			    BaseSensitivity->SetOutputValueRange(TRange<float>(0.1f, 10.f));
+			    BaseSensitivity->SetSliderStepSize(0.1f);
+			    BaseSensitivity->SetDefaultValueFromString(LexToString(1.f));
+			    BaseSensitivity->SetDisplayNumericType(ECommonNumericType::Number); 
+			    BaseSensitivity->SetNumberFormattingOptions(UListDataObject_Scalar::WithDecimal(1)); 
+			    BaseSensitivity->SetDataDynamicGetter(MAKE_OPTIONS_DATA_CONTROL(GetBaseLookSensitivity));
+			    BaseSensitivity->SetDataDynamicSetter(MAKE_OPTIONS_DATA_CONTROL(SetBaseLookSensitivity));
+			    BaseSensitivity->SetShouldApplyChangeImmediately(true);
+
+			    KeyboardMouseCategoryCollection->AddChildListData(BaseSensitivity);
+
+			    // 开镜灵敏度 (ADS Look Sensitivity)
+			    UListDataObject_Scalar* ADSSensitivity = NewObject<UListDataObject_Scalar>();
+			    ADSSensitivity->SetDataID(FName("ADSLookSensitivity"));
+			    ADSSensitivity->SetDataDisplayName(FText::FromString(TEXT("ADS Look Multiplier")));
+			    ADSSensitivity->SetDescriptionRichText(FText::FromString(TEXT("Adjust the mouse sensitivity multiplier when aiming down sights.")));
+			    ADSSensitivity->SetDisplayValueRange(TRange<float>(0.1f, 2.f));
+			    ADSSensitivity->SetOutputValueRange(TRange<float>(0.1f, 2.f));
+			    ADSSensitivity->SetSliderStepSize(0.1f);
+			    ADSSensitivity->SetDefaultValueFromString(LexToString(0.5f));
+			    ADSSensitivity->SetDisplayNumericType(ECommonNumericType::Number);
+			    ADSSensitivity->SetNumberFormattingOptions(UListDataObject_Scalar::WithDecimal(1)); 
+			    // 绑定后台数据的 Getter 和 Setter
+			    ADSSensitivity->SetDataDynamicGetter(MAKE_OPTIONS_DATA_CONTROL(GetADSLookSensitivity));
+			    ADSSensitivity->SetDataDynamicSetter(MAKE_OPTIONS_DATA_CONTROL(SetADSLookSensitivity));
+			    ADSSensitivity->SetShouldApplyChangeImmediately(true);
+
+			    KeyboardMouseCategoryCollection->AddChildListData(ADSSensitivity);
+			}
+			
+			// Keyboard Inputs
+			{
+				FPlayerMappableKeyQueryOptions KeyboardMouseOnly;
+				KeyboardMouseOnly.KeyToMatch = EKeys::S;
+				KeyboardMouseOnly.bMatchBasicKeyTypes = true;
+			
+				/*FPlayerMappableKeyQueryOptions GamepadOnly;
+				GamepadOnly.KeyToMatch = EKeys::Gamepad_FaceButton_Bottom;
+				GamepadOnly.bMatchBasicKeyTypes = true;*/
+			
+				for (const auto& ProfilePair : EIUserSettings->GetAllAvailableKeyProfiles())
 				{
-					for (const auto& KeyMapping : MappingRowPair.Value.Mappings)
+					UEnhancedPlayerMappableKeyProfile* MappableKeyProfile = ProfilePair.Value;
+					check(MappableKeyProfile);
+					for (const auto& MappingRowPair : MappableKeyProfile->GetPlayerMappingRows())
 					{
-						if (MappableKeyProfile->DoesMappingPassQueryOptions(KeyMapping, KeyboardMouseOnly))
+						for (const auto& KeyMapping : MappingRowPair.Value.Mappings)
 						{
-							UListDataObject_KeyRemap* KeyRemapDataObject = NewObject<UListDataObject_KeyRemap>();
-							KeyRemapDataObject->SetDataID(KeyMapping.GetMappingName());
-							KeyRemapDataObject->SetDataDisplayName(KeyMapping.GetDisplayName());
-							KeyRemapDataObject->InitKeyRemapData(
-									EIUserSettings,
-									MappableKeyProfile,
-									ECommonInputType::MouseAndKeyboard,
-									KeyMapping
-								);
+							if (MappableKeyProfile->DoesMappingPassQueryOptions(KeyMapping, KeyboardMouseOnly))
+							{
+								UListDataObject_KeyRemap* KeyRemapDataObject = NewObject<UListDataObject_KeyRemap>();
+								KeyRemapDataObject->SetDataID(KeyMapping.GetMappingName());
+								KeyRemapDataObject->SetDataDisplayName(KeyMapping.GetDisplayName());
+								KeyRemapDataObject->InitKeyRemapData(
+										EIUserSettings,
+										MappableKeyProfile,
+										ECommonInputType::MouseAndKeyboard,
+										KeyMapping
+									);
 							
-							KeyboardMouseCategoryCollection->AddChildListData(KeyRemapDataObject);
+								KeyboardMouseCategoryCollection->AddChildListData(KeyRemapDataObject);
+							}
 						}
 					}
 				}
 			}
-			
 		}
 		
 		ControlTabCollection->AddChildListData(KeyboardMouseCategoryCollection);
+		
+		
 	}
 	
 	//	Gamepad Category

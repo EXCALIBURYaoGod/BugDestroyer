@@ -20,6 +20,7 @@ void ACommonGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ACommonGameState, WarmupTime);
 	DOREPLIFETIME(ACommonGameState, CooldownTime);
 	DOREPLIFETIME(ACommonGameState, WinnerTeam);
+	DOREPLIFETIME(ACommonGameState, MatchScore);
 	
 }
 
@@ -100,6 +101,11 @@ void ACommonGameState::OnRep_CooldownTime()
 	int32 M = CooldownTime / 60;
 	int32 S = CooldownTime % 60;
 	OnCooldownTimeUpdated.Broadcast(M, S);
+}
+
+void ACommonGameState::OnRep_MatchScore()
+{
+	OnMatchScoreUpdated.Broadcast(MatchScore);
 }
 
 

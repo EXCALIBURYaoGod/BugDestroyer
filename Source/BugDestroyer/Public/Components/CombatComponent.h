@@ -58,6 +58,8 @@ protected:
 	void OnRep_SecondaryWeapon();
 	void Fire();
 	void ExecuteFire(bool InIsFire);
+	void ApplyRecoil();
+	void RecoverRecoil(float DeltaTime);
 	void LocalPlayFireFX(const FVector& InHitTarget, int32 InRandomSeed);
 	
 	void TossGrenade();
@@ -76,7 +78,7 @@ protected:
 	void ReloadLocal();
 	void ServerHandleReloadFinished();
 	FTimerHandle ReloadTimerHandle;
-	
+	FTimerHandle BoltTimerHandle;
 	void OnReloadAnimationFinished();	// Called when reload animation finishes
 	void OnEquipAnimationFinished();
 	void OnTossGrenadeAnimationFinished();
@@ -90,7 +92,6 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void RPC_SwapWeapons();
 	
-	
 private:
 	UPROPERTY()
 	ABugCharacter* BugCharacter;
@@ -102,6 +103,10 @@ private:
 	AWeapon* PrimaryWeapon;
 	UPROPERTY(ReplicatedUsing=OnRep_SecondaryWeapon, VisibleAnywhere, Category= "Equip")
 	AWeapon* SecondaryWeapon;
+	FVector2D CurrentRecoilOffset = FVector2D::ZeroVector;
+	float CurrentRecoveryRate = 10.0f;
+	UPROPERTY(EditAnywhere, Category = "Sniper | Animation")
+	float BoltActionDelay = 0.4f;
 	UPROPERTY(Replicated)
 	bool bAiming;
 	bool bFiring;
@@ -153,8 +158,10 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, Category= "Random")
 	int32 RandomSeed = 1334;
+	void PlayBoltAction();
 	
 public:
+	FORCEINLINE bool IsAiming() const { return bAiming; }
 	UPROPERTY(Replicated)
 	FVector_NetQuantize HitTarget;
 	UPROPERTY(VisibleAnywhere)

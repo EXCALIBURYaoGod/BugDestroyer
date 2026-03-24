@@ -13,7 +13,27 @@ class ACasing;
 class UWidgetComponent;
 class USphereComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAmmoChangedSignature, int32, CurrentAmmo, int32, MagCapacity, int32, AmmoLeft);
+USTRUCT(BlueprintType)
+struct FWeaponRecoilData
+{
+	GENERATED_BODY()
+
+	// 每次开火准星向上跳动的幅度 (Pitch)
+	UPROPERTY(EditAnywhere, Category = "Recoil")
+	float VerticalRecoilMin = 0.5f;
+	UPROPERTY(EditAnywhere, Category = "Recoil")
+	float VerticalRecoilMax = 1.2f;
+
+	// 每次开火准星左右随机漂移的幅度 (Yaw)
+	UPROPERTY(EditAnywhere, Category = "Recoil")
+	float HorizontalRecoilMin = -0.5f;
+	UPROPERTY(EditAnywhere, Category = "Recoil")
+	float HorizontalRecoilMax = 0.5f;
+
+	// 后坐力恢复速度 (停止开火后，准星回中的速度)
+	UPROPERTY(EditAnywhere, Category = "Recoil")
+	float RecoilRecoveryRate = 10.0f;
+};
 
 UENUM(BlueprintType)
 enum class EWeaponState : uint8
@@ -39,7 +59,7 @@ enum class EWeaponType : uint8
 	EWT_Max UMETA(DisplayName = "DefaultMax")
 };
 
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAmmoChangedSignature, int32, CurrentAmmo, int32, MagCapacity, int32, AmmoLeft);
 /**
  * 武器类，目前是通用所有武器
  */
@@ -110,6 +130,14 @@ protected:
 	float DefaultFireSphereRadius = 75.f;
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
 	bool bUseScatter = false;
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float MaxMovementScatterMultiplier = 2.0f;
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float PlayerMaxSpeedForScatter = 350.0f;  // DefaultMaxWalkSpeed
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float WeaponAimMultiplier = 0.8f;
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float WeaponCrouchMultiplier = 0.8f;
 	// trace end with scatter
 	
 	UPROPERTY(Replicated, EditAnywhere, Category= "ServerSideRewind")
@@ -158,6 +186,8 @@ private:
 	USoundBase* ReloadSound;
 	UPROPERTY(EditAnywhere, Category="Weapon Properties")
 	float ReloadTime = 2.f;
+	UPROPERTY(EditAnywhere, Category="Weapon Properties")
+	FWeaponRecoilData RecoilData;
 	
 	UFUNCTION()
 	void OnRep_WeaponState();
@@ -193,6 +223,7 @@ public:
 	FORCEINLINE TSubclassOf<ACasing> GetCasingClass() const { return CasingClass; }
 	FORCEINLINE void SetServerSideRewind(const bool InbUseServerSideRewind) { bUseServerSideRewind = InbUseServerSideRewind; }
 	FORCEINLINE float GetReloadTime() const { return ReloadTime; }
+	FORCEINLINE FWeaponRecoilData GetRecoilData() const { return RecoilData; }
 	
 	UPROPERTY(BlueprintAssignable)
 	FOnAmmoChangedSignature OnAmmoChanged;

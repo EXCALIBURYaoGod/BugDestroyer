@@ -14,7 +14,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMVPNameUpdated, const FText&, Win
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWinnerTeamUpdated, const FText&, WinnerTeam);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnKillMessageBroadcast, const FString&, KillerName, const FString&, VictimName, const FString&, WeaponName, bool, bIsHeadshot);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTeamScoreUpdated, int32, RedTeamScore, int32, BlueTeamScore);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchScoreUpdated, int32, InNewScore);
 
 /**
  * 通用比赛状态类，负责存储全局比赛数据
@@ -44,6 +44,8 @@ public:
 	FOnTeamScoreUpdated OnTeamScoreUpdated;
 	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
 	FOnWinnerTeamUpdated OnWinnerTeamUpdated;
+	UPROPERTY(BlueprintAssignable, Category = "Events|Match")
+	FOnMatchScoreUpdated OnMatchScoreUpdated;
 	
 	// == Teams == //
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Teams|Match")
@@ -83,8 +85,12 @@ private:
 	void OnRep_WarmupTime();
 	UPROPERTY(ReplicatedUsing = OnRep_CooldownTime, BlueprintReadOnly, VisibleAnywhere, Category = "Match", meta = (AllowPrivateAccess = true))
 	int32 CooldownTime = 10;
+	UPROPERTY(ReplicatedUsing = OnRep_MatchScore, EditAnywhere, Category="Teams|Match")
+	int32 MatchScore = 100;
 	UFUNCTION()
 	void OnRep_CooldownTime();
+	UFUNCTION()
+	void OnRep_MatchScore();
 	
 public:
 	FORCEINLINE void SetMatchTime(int32 NewMatchTime) { if (HasAuthority()) MatchTime = NewMatchTime; }
@@ -93,5 +99,7 @@ public:
 	FORCEINLINE int32 GetWarmupTime() const { return WarmupTime; }
 	FORCEINLINE void SetCooldownTime(int32 NewCooldownTime) { if (HasAuthority()) CooldownTime = NewCooldownTime; }
 	FORCEINLINE int32 GetCooldownTime() const { return CooldownTime; }
+	FORCEINLINE int32 GetMatchScore() const { return MatchScore; }
+	FORCEINLINE void SetMatchScore(int32 NewMatchScore) { MatchScore = NewMatchScore; }
 	
 };

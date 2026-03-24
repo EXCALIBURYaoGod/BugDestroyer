@@ -42,7 +42,7 @@ void AShieldPickup::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AA
 		}
 	}
 	
-	SetLifeSpan(0.1f);
+	SetLifeSpan(0.2f);
 }
 
 // Called every frame

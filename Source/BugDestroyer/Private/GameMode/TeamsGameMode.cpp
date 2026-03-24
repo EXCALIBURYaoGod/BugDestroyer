@@ -3,30 +3,24 @@
 
 #include "GameMode/TeamsGameMode.h"
 
+#include "GameFramework/PlayerStart.h"
 #include "GameState/CommonGamePlayerState.h"
 #include "GameState/CommonGameState.h"
 #include "Kismet/GameplayStatics.h"
 
+void ATeamsGameMode::BeginPlay()
+{
+	Super::BeginPlay();
+	if (ACommonGameState* GS = GetGameState<ACommonGameState>())
+	{
+		GS->SetMatchScore(MatchScore);
+		GS->OnMatchScoreUpdated.Broadcast(MatchScore);
+	}
+}
+
 void ATeamsGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
-	if (ACommonGameState* CommonGameState = Cast<ACommonGameState>(UGameplayStatics::GetGameState(this)))
-	{
-		ACommonGamePlayerState* CommonGamePlayerState = NewPlayer->GetPlayerState<ACommonGamePlayerState>();
-		if (CommonGamePlayerState && CommonGamePlayerState->GetTeam() == ETeam::ET_NoneTeam)
-		{
-			if (CommonGameState->BlueTeam.Num() >= CommonGameState->RedTeam.Num())
-			{
-				CommonGameState->RedTeam.AddUnique(CommonGamePlayerState);
-				CommonGamePlayerState->SetTeam(ETeam::ET_RedTeam);
-			}
-			else
-			{
-				CommonGameState->BlueTeam.AddUnique(CommonGamePlayerState);
-				CommonGamePlayerState->SetTeam(ETeam::ET_BlueTeam);
-			}
-		}
-	}
 }
 
 void ATeamsGameMode::Logout(AController* Exiting)
@@ -45,6 +39,88 @@ void ATeamsGameMode::Logout(AController* Exiting)
 			CommonGameState->BlueTeam.Remove(CommonGamePlayerState);
 		}
 	}
+}
+
+AActor* ATeamsGameMode::ChoosePlayerStart_Implementation(AController* Player)
+{
+	FName TeamTag = NAME_None;
+	
+	if (ACommonGamePlayerState* PS = Player->GetPlayerState<ACommonGamePlayerState>())
+	{
+		if (PS->GetTeam() == ETeam::ET_RedTeam)
+		{
+			TeamTag = FName("RedTeam");
+		}
+		else if (PS->GetTeam() == ETeam::ET_BlueTeam)
+		{
+			TeamTag = FName("BlueTeam");
+		}
+	}
+	
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, APlayerStart::StaticClass(), Actors);
+
+	TArray<AActor*> TeamSpawns;
+	for (AActor* Spawn : Actors)
+	{
+		if (APlayerStart* PlayerStart = Cast<APlayerStart>(Spawn))
+		{
+			/*Debug::Print(FString::Printf(TEXT("PlayerStartTag: %s"), *PlayerStart->PlayerStartTag.ToString()));*/
+			if (PlayerStart->PlayerStartTag == TeamTag)
+			{
+				TeamSpawns.Add(PlayerStart);
+			}
+		}
+	}
+
+	if (TeamSpawns.Num() > 0)
+	{
+		int32 Selection = FMath::RandRange(0, TeamSpawns.Num() - 1);
+		return TeamSpawns[Selection];
+	}
+	
+	return Super::ChoosePlayerStart_Implementation(Player);
+}
+
+FString ATeamsGameMode::InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,
+	const FString& Options, const FString& Portal)
+{
+	InitPlayerTeam(NewPlayerController);
+	return Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
+}
+
+void ATeamsGameMode::InitPlayerTeam(AController* NewController)
+{
+	if (ACommonGameState* CommonGameState = GetGameState<ACommonGameState>())
+	{
+		if (ACommonGamePlayerState* CommonGamePlayerState = NewController->GetPlayerState<ACommonGamePlayerState>())
+		{
+			if (CommonGamePlayerState->GetTeam() == ETeam::ET_NoneTeam)
+			{
+				if (CommonGameState->BlueTeam.Num() >= CommonGameState->RedTeam.Num())
+				{
+					CommonGameState->RedTeam.AddUnique(CommonGamePlayerState);
+					CommonGamePlayerState->SetTeam(ETeam::ET_RedTeam);
+				}
+				else
+				{
+					CommonGameState->BlueTeam.AddUnique(CommonGamePlayerState);
+					CommonGamePlayerState->SetTeam(ETeam::ET_BlueTeam);
+				}
+			}
+		}
+	}
+}
+
+void ATeamsGameMode::InitSeamlessTravelPlayer(AController* NewController)
+{
+	InitPlayerTeam(NewController);
+	Super::InitSeamlessTravelPlayer(NewController);
+}
+
+void ATeamsGameMode::HandleMatchIsWaitingToStart()
+{
+	Super::HandleMatchIsWaitingToStart();
 }
 
 void ATeamsGameMode::HandleMatchEnd()
@@ -86,27 +162,6 @@ float ATeamsGameMode::CalculateActualDamage(AController* Attacker, AController* 
 void ATeamsGameMode::HandleMatchHasStarted()
 {
 	Super::HandleMatchHasStarted();
-	if (ACommonGameState* CommonGameState = Cast<ACommonGameState>(UGameplayStatics::GetGameState(this)))
-	{
-		for (auto _PlayerState : CommonGameState->PlayerArray)
-		{
-			ACommonGamePlayerState* CommonGamePlayerState = Cast<ACommonGamePlayerState>(_PlayerState);
-			if (CommonGamePlayerState && CommonGamePlayerState->GetTeam() == ETeam::ET_NoneTeam)
-			{
-				if (CommonGameState->BlueTeam.Num() >= CommonGameState->RedTeam.Num())
-				{
-					CommonGameState->RedTeam.AddUnique(CommonGamePlayerState);
-					CommonGamePlayerState->SetTeam(ETeam::ET_RedTeam);
-				}
-				else
-				{
-					CommonGameState->BlueTeam.AddUnique(CommonGamePlayerState);
-					CommonGamePlayerState->SetTeam(ETeam::ET_BlueTeam);
-				}
-			}
-		}
-	}
-	
 }
 
 void ATeamsGameMode::PlayerEliminated(class ABugCharacter* VictimCharacter, AController* VictimController,
@@ -137,6 +192,11 @@ void ATeamsGameMode::PlayerEliminated(class ABugCharacter* VictimCharacter, ACon
 			}
 		}
 	}
+}
+
+void ATeamsGameMode::HandleCooldownMatchState()
+{
+	Super::HandleCooldownMatchState();
 }
 
 

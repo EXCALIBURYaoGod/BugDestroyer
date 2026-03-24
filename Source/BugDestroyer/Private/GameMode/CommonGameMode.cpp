@@ -102,10 +102,7 @@ void ACommonGameMode::RequestRespawn(ACharacter* VictimCharacter, AController* V
 	}
 	if (VictimController)
 	{
-		TArray<AActor*> Actors;
-		UGameplayStatics::GetAllActorsOfClass(this, APlayerStart::StaticClass(), Actors);
-		int32 Selection = FMath::RandRange(0, Actors.Num() - 1);
-		RestartPlayerAtPlayerStart(VictimController, Actors[Selection]);
+		RestartPlayer(VictimController);
 	}
 	
 }

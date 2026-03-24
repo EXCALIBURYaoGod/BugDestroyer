@@ -37,6 +37,10 @@ protected:
 	void BP_OnShieldUpdated(float NewShield, float MaxShield);
 	UFUNCTION()
 	void OnShieldChangedCallback(float NewShield, float MaxShield);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_OnBrokenShield();
+	UFUNCTION()
+	void OnBrokenShieldCallback();
 	UFUNCTION()
 	void OnAmmoChangedCallback(int32 InCurrentAmmo, int32 InMagCapacity, int32 InAmmoLeft);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
@@ -53,6 +57,10 @@ protected:
 	void OnMatchTimeChangedCallback(int32 InNewMinutes, int32 InNewSeconds);
 	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
 	void BP_OnMatchTimeUpdated(int32 InNewMinutes, int32 InNewSeconds);
+	UFUNCTION()
+	void OnMatchScoreChangedCallback(int32 InNewScore);
+	UFUNCTION(BlueprintImplementableEvent, Category = "BugDestroyer|UI")
+	void BP_OnMatchScoreUpdated(int32 InNewScore);
 	UFUNCTION()
 	void OnTeamScoreChangedCallback(int32 InRedTeamScore, int32 InBlueTeamScore);
 	UPROPERTY()

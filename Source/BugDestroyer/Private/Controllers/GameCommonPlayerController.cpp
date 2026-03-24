@@ -13,6 +13,7 @@
 #include "GameFramework/PlayerState.h"
 #include "GameMode/CommonGameMode.h"
 #include "GameState/CommonGameState.h"
+#include "Kismet/GameplayStatics.h"
 #include "UI/Subsystems/BugUISubsystem.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 #include "Weapons/Weapon.h"
@@ -97,6 +98,19 @@ void AGameCommonPlayerController::ShowSniperScopeWidget(bool bIsShow)
 			CachedSniperScopeWidget = nullptr;
 		}
 	}
+}
+
+void AGameCommonPlayerController::Client_NotifyShieldBroken_Implementation()
+{
+	if (ShieldBrokenSound)
+	{
+		UGameplayStatics::PlaySound2D(this, ShieldBrokenSound);
+	}
+	if (ABugCharacter* BugChar = Cast<ABugCharacter>(GetPawn()))
+	{
+		BugChar->OnBrokenShield.Broadcast();
+	}
+	
 }
 
 void AGameCommonPlayerController::PostSeamlessTravel()

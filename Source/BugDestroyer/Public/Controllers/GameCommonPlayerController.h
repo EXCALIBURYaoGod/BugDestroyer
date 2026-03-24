@@ -27,6 +27,8 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_ShowMatchCooldown(const FText& WinnerNames);
 	void ShowSniperScopeWidget(bool bIsShow);
+	UFUNCTION(Client, Reliable)
+	void Client_NotifyShieldBroken();
 	
 protected:
 	// Begin APlayerController Interface
@@ -72,6 +74,9 @@ protected:
 	void ToggleScoreboardButtonPressed();
 	void ToggleScoreboardButtonReleased();
 	// == Input == //
+	
+	UPROPERTY(EditAnywhere, Category = "SoundFX")
+	class USoundBase* ShieldBrokenSound;
 	
 private:
 	UPROPERTY(EditAnywhere, Category = "UI")

@@ -119,9 +119,45 @@ FVector AWeapon::TraceEndWithScatter(const FVector& TraceStart, const FVector& H
 	FRandomStream WeaponStream(InRandomSeed);
 	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
 	FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
-	FVector RandVector = WeaponStream.GetUnitVector() * WeaponStream.FRandRange(0.f, FireSphereRadius);
+	float DynamicSphereRadius = FireSphereRadius; // 默认基础散布
+    
+	if (CachedOwningBugCharacterForEquip)
+	{
+		float PlayerSpeed = CachedOwningBugCharacterForEquip->GetVelocity().Size2D();
+		float SpeedMultiplier = FMath::GetMappedRangeValueClamped(
+		   FVector2D(0.f, PlayerMaxSpeedForScatter),
+		   FVector2D(1.0f, MaxMovementScatterMultiplier),
+		   PlayerSpeed
+		);
+		DynamicSphereRadius *= SpeedMultiplier;
+       
+		if (UCombatComponent* CombatComp = CachedOwningBugCharacterForEquip->GetCombatComponent())
+		{
+			if (CombatComp->IsAiming()) 
+			{
+				DynamicSphereRadius *= WeaponAimMultiplier; 
+			}
+		}
+		if (CachedOwningBugCharacterForEquip->bIsCrouched)
+		{
+			DynamicSphereRadius *= WeaponCrouchMultiplier;
+		}
+	}
+    
+	/*// ==========================================
+	// 🛠️ Debug 绘制区：直观展示动态散布范围
+	// ==========================================
+	if (GetWorld())
+	{
+		// 画出当前的散布球体范围 (红色线框)
+		DrawDebugSphere(GetWorld(), SphereCenter, DynamicSphereRadius, 16, FColor::Red, false, 8.0f);
+	}
+	// ==========================================*/
+
+	FVector RandVector = WeaponStream.GetUnitVector() * WeaponStream.FRandRange(0.f, DynamicSphereRadius);
 	FVector EndLoc = SphereCenter + RandVector;
 	FVector ToEndLoc = EndLoc - TraceStart;
+    
 	return TraceStart + ToEndLoc.GetSafeNormal() * 80000.f;
 }
 

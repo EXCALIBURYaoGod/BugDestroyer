@@ -126,6 +126,18 @@ void UBugAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 					Character->bUseControllerRotationYaw = false;
 				}
 				AO_Yaw= DeltaAimRotation.Yaw;
+				const float MaxYawOffset = 135.f; 
+				if (FMath::Abs(AO_Yaw) > MaxYawOffset)
+				{
+					float YawExcess = AO_Yaw > 0 ? (AO_Yaw - MaxYawOffset) : (AO_Yaw + MaxYawOffset);
+					
+					FRotator CharacterRot = Character->GetActorRotation();
+					CharacterRot.Yaw += YawExcess; 
+
+					Character->SetActorRotation(CharacterRot);
+					
+					AO_Yaw = FMath::Clamp(AO_Yaw, -MaxYawOffset, MaxYawOffset);
+				}
 				TurnInPlace(DeltaSeconds);
 			}
 			if (Speed > 1.f || bIsInAir) 

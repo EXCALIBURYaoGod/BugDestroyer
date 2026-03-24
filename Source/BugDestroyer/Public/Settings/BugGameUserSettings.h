@@ -57,6 +57,17 @@ public:
 	void SetCurrentDisplayGamma(float InDisplayGamma);
 	/** Video Collection Tab **/
 	
+	/** Control Collection Tab **/
+	UFUNCTION()
+	float GetBaseLookSensitivity() const;
+	UFUNCTION()
+	void SetBaseLookSensitivity(float NewValue);
+	UFUNCTION()
+	float GetADSLookSensitivity() const;
+	UFUNCTION()
+	void SetADSLookSensitivity(float NewValue);
+	/** Control Collection Tab **/
+	
 private:
 	/** Gameplay Collection Tab **/
 	UPROPERTY(Config)
@@ -75,5 +86,12 @@ private:
 	UPROPERTY(Config)
 	bool bUseHDRAudioMode;
 	/** Audio Collection Tab **/
+	
+	/** Control Collection Tab **/
+	UPROPERTY(Config)
+	float BaseLookSensitivity;
+	UPROPERTY(Config)
+	float ADSLookSensitivity;
+	/** Control Collection Tab **/
 	
 };

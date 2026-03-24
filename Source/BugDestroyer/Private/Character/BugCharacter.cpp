@@ -13,6 +13,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/CombatComponent.h"
 #include "Components/LagCompensationComponent.h"
+#include "Controllers/GameCommonPlayerController.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -22,6 +23,7 @@
 #include "Weapons/Weapon.h"
 #include "Engine/NetConnection.h"
 #include "GameState/CommonGamePlayerState.h"
+#include "Settings/BugGameUserSettings.h"
 
 
 ABugCharacter::ABugCharacter()
@@ -167,6 +169,7 @@ void ABugCharacter::InitTeamBinding()
 			ApplyMaterialByTeam(BugPS->GetTeam());
 		}
 	}
+	CreateMIDs();
 }
 
 
@@ -202,12 +205,23 @@ void ABugCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& 
 	DOREPLIFETIME_CONDITION(ABugCharacter, OverlappingWeapon, COND_OwnerOnly);
 	DOREPLIFETIME(ABugCharacter, CurrentHealth);
 	DOREPLIFETIME(ABugCharacter, ProjectileImpactPoint);
+	DOREPLIFETIME(ABugCharacter, bIsInvincible);
+	
 }
 
 void ABugCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 	InitTeamBinding();
+	bIsInvincible = true;
+	OnRep_IsInvincible(); 
+	GetWorldTimerManager().SetTimer(
+		SpawnProtectionTimer,
+		this,
+		&ABugCharacter::ClearSpawnProtection,
+		SpawnProtectionTime,
+		false
+	);
 }
 
 void ABugCharacter::Move(const FInputActionValue& Value)
@@ -228,10 +242,19 @@ void ABugCharacter::Move(const FInputActionValue& Value)
 void ABugCharacter::Look(const FInputActionValue& Value)
 {
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
-	if (Controller != nullptr)
+	if (Controller != nullptr && CombatComponent != nullptr)
 	{
-		AddControllerYawInput(LookAxisVector.X);
-		AddControllerPitchInput(LookAxisVector.Y);
+		float FinalSensitivity = 1.0f;
+       
+		if (UBugGameUserSettings* Settings = UBugGameUserSettings::Get())
+		{
+			float BaseSens = Settings->GetBaseLookSensitivity();
+			FinalSensitivity = IsAiming() ? (BaseSens * Settings->GetADSLookSensitivity()) : BaseSens;
+		}
+       
+		AddControllerYawInput(LookAxisVector.X * FinalSensitivity);
+		AddControllerPitchInput(LookAxisVector.Y * FinalSensitivity);
+
 	}
 }
 
@@ -398,6 +421,7 @@ void ABugCharacter::Jump()
 float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
 {
 	if (bElimmed) return 0.0f;
+	if (bIsInvincible) return 0.0f;
 	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (HasAuthority())
 	{
@@ -421,11 +445,12 @@ float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& D
 		if (HitInfo.GetComponent() && HitInfo.GetComponent()->ComponentHasTag(FName("Head")))
 		{
 			bIsHeadshot = true;
-			DamageToHealth = DamageToHealth * 2;
+			DamageToHealth = DamageToHealth * 2.0f;
 		}
+		float OldShield = GetCurrentShield();
 		if (GetCurrentShield() > 0.f)
 		{
-			if (GetCurrentShield() >= DamageToHealth)
+			if (GetCurrentShield() > DamageToHealth)
 			{
 				SetCurrentShield(GetCurrentShield() - DamageToHealth);
 				DamageToHealth = 0.f; 
@@ -434,6 +459,16 @@ float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& D
 			{
 				DamageToHealth -= GetCurrentShield();
 				SetCurrentShield(0.f); 
+			}
+			if (OldShield > 0.f && GetCurrentShield() == 0.f) 
+			{
+				if (EventInstigator && EventInstigator != GetController())
+				{
+					if (AGameCommonPlayerController* AttackerPC = Cast<AGameCommonPlayerController>(EventInstigator))
+					{
+						AttackerPC->Client_NotifyShieldBroken();
+					}
+				}
 			}
 			OnShieldChanged.Broadcast(GetCurrentShield(), GetMaxShield());
 		}
@@ -450,6 +485,37 @@ float ABugCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& D
 	}
 
 	return ActualDamage;
+}
+
+void ABugCharacter::OnRep_IsInvincible()
+{
+	if (bIsInvincible)
+	{
+		for (UMaterialInstanceDynamic* MID : DynamicMeshMID)
+		{
+			if (MID)
+			{
+				MID->SetScalarParameterValue(FName("GhostAlpha"), 0.2f);
+			}
+		}
+		
+	}
+	else
+	{
+		for (UMaterialInstanceDynamic* MID : DynamicMeshMID)
+		{
+			if (MID)
+			{
+				MID->SetScalarParameterValue(FName("GhostAlpha"), 1.0f);
+			}
+		}
+	}
+}
+
+void ABugCharacter::ClearSpawnProtection()
+{
+	bIsInvincible = false;
+	OnRep_IsInvincible();
 }
 
 AWeapon* ABugCharacter::GetNearestWeaponInArray()
@@ -793,8 +859,8 @@ void ABugCharacter::EliminateCharacter()
 			UISubsystem->UnRegisterCreatedPrimaryLayoutWidget(Layout);
 		}
 	}*/
-	
-	MulticastRPC_EliminateCharacter();
+	int32 RandomIndex = FMath::RandRange(1, 3);
+	MulticastRPC_EliminateCharacter(ProjectileImpactPoint, RandomIndex);
 	GetWorldTimerManager().SetTimer(
 		ElimTimerHandle,
 		this,
@@ -803,7 +869,7 @@ void ABugCharacter::EliminateCharacter()
 	);
 }
 
-void ABugCharacter::MulticastRPC_EliminateCharacter_Implementation()
+void ABugCharacter::MulticastRPC_EliminateCharacter_Implementation(const FVector_NetQuantize& ImpactPoint, int32 RandomIndex)
 {
 	bElimmed = true;
 	// Disable Input
@@ -815,15 +881,21 @@ void ABugCharacter::MulticastRPC_EliminateCharacter_Implementation()
 	{
 		GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	}
-	
+	for (auto& HitBoxPair : GetHitBoxes())
+	{
+		if (UBoxComponent* HitBox = HitBoxPair.Value)
+		{
+			HitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			HitBox->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+		}
+	}
 	if (GetCharacterMovement())
 	{
 		GetCharacterMovement()->StopMovementImmediately();
 		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None); 
 		GetCharacterMovement()->DisableMovement();
 	}
-	PlayDeathMontage(ProjectileImpactPoint);
-
+	PlayDeathMontage(ImpactPoint, RandomIndex);
 	int32 NumMaterials = GetMesh()->GetNumMaterials();
 	DynamicDissolveInstances.Empty();
 	USkinnedAsset* SkinnedAsset = GetMesh()->GetSkinnedAsset();
@@ -939,7 +1011,7 @@ void ABugCharacter::PlayHitReactMontage(const FVector& HitPoint)
 	
 }
 
-void ABugCharacter::PlayDeathMontage(const FVector& HitPoint)
+void ABugCharacter::PlayDeathMontage(const FVector& HitPoint, int32 RandomIndex)
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && DeathMontage)
@@ -954,7 +1026,6 @@ void ABugCharacter::PlayDeathMontage(const FVector& HitPoint)
 		FName SectionName = FName("FromFront1"); 
 		if (CosTheta >= 0.5f) 
 		{
-			int32 RandomIndex = FMath::RandRange(1, 3); 
 			SectionName = FName(*FString::Printf(TEXT("FromFront%d"), RandomIndex));
 		}
 		else if (CosTheta <= -0.5f)
@@ -969,7 +1040,6 @@ void ABugCharacter::PlayDeathMontage(const FVector& HitPoint)
 		{
 			SectionName = FName("FromLeft");
 		}
-		Debug::Print(FString::Printf(TEXT("SectionName: %s"), *SectionName.ToString()));
 		AnimInstance->Montage_Play(DeathMontage);
 		AnimInstance->Montage_JumpToSection(SectionName, DeathMontage);
 		
@@ -1006,6 +1076,16 @@ void ABugCharacter::PlayEquipMontage(AWeapon* WeaponToEquip)
 		
 		AnimInstance->Montage_Play(EquipMontage);
 		AnimInstance->Montage_JumpToSection(SectionName, EquipMontage);
+	}
+}
+
+void ABugCharacter::PlayBoltMontage()
+{
+	if (!CombatComponent || CombatComponent->PrimaryWeapon == nullptr) return;
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && SniperBoltMontage)
+	{
+		AnimInstance->Montage_Play(SniperBoltMontage);
 	}
 }
 

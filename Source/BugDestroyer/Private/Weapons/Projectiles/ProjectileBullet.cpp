@@ -46,6 +46,7 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 	{	// server
 		if (!bFakeProjectile)
 		{
+
 			ABugCharacter* BugCharacter = Cast<ABugCharacter>(OtherActor);
             if (BugCharacter)
             {
@@ -72,7 +73,8 @@ void AProjectileBullet::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 				);
             }
 		}
-	}else if (bUseServerSideRewind)
+	}
+	if (bUseServerSideRewind)
 	{	// Only Instigator生成fake projectile
 		if (bFakeProjectile)
 		{

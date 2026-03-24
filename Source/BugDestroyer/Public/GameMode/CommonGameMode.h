@@ -38,7 +38,7 @@ protected:
 	void UpdateMatchTime();
 	FTimerHandle WarmupTimerHandle;
 	void UpdateWarmupTime();
-	void HandleCooldownMatchState();
+	virtual void HandleCooldownMatchState();
 	FTimerHandle CooldownTimerHandle;
 	void UpdateCooldownTime();
 	virtual void HandleMatchEnd();

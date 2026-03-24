@@ -25,6 +25,7 @@ class UInputMappingContext;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedSignature, float, NewHealth, float, MaxHealth);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnShieldChangedSignature, float, NewShield, float, MaxShield);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnShieldBrokenSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponChangedSignature, AWeapon*, NewWeapon);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAmmoLeftChangedSignature, int32, CurrentAmmo, int32, MagCapacity, int32, AmmoLeft);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrenadeAmountChangedSignature, int32, CurrentGrenade);
@@ -69,7 +70,7 @@ public:
 	void GetHit(const FVector& HitPoint);
 	void EliminateCharacter();
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPC_EliminateCharacter();
+	void MulticastRPC_EliminateCharacter(const FVector_NetQuantize& ImpactPoint, int32 RandomIndex);
 	FORCEINLINE virtual void GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const override
 	{
 		TagContainer = OwnedTags;
@@ -181,6 +182,17 @@ protected:
 	}
 	// == Hit boxes used for server-side rewind == //
 	
+	// == 无敌时间 == //
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float SpawnProtectionTime = 3.f;
+	UPROPERTY(ReplicatedUsing = OnRep_IsInvincible)
+	bool bIsInvincible = false;
+	UFUNCTION()
+	void OnRep_IsInvincible();
+	FTimerHandle SpawnProtectionTimer;
+	void ClearSpawnProtection();
+	// == 无敌时间 == //
+	
 private:
 	UPROPERTY(VisibleAnywhere, Category = Camera)
 	USpringArmComponent* CameraBoom;
@@ -248,12 +260,15 @@ private:
 	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* DeathMontage;
 	UPROPERTY(EditAnywhere, Category= "Montages")
+	int32 DeathMontageID = 0;
+	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* EquipMontage;
 	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* ReloadMontage;
 	UPROPERTY(EditAnywhere, Category= "Montages")
 	UAnimMontage* GrenadeTossMontage;
-	
+	UPROPERTY(EditAnywhere, Category= "Montages")
+	UAnimMontage* SniperBoltMontage;
 	UPROPERTY(ReplicatedUsing = OnRep_ProjectileImpactPoint, VisibleAnywhere, Category= "Combat")
 	FVector_NetQuantize ProjectileImpactPoint;	
 	
@@ -341,13 +356,16 @@ public:
 	AWeapon* GetEquippedWeapon() const;
 	void PlayFireMontage();
 	void PlayHitReactMontage(const FVector& HitPoint);
-	void PlayDeathMontage(const FVector& HitPoint);
+	void PlayDeathMontage(const FVector& HitPoint, int32 RandomIndex);
 	void PlayEquipMontage(AWeapon* WeaponToEquip);
+	void PlayBoltMontage();
 	void PlayReloadMontage();
 	void PlayGrenadeTossMontage();
 	// Health
 	UPROPERTY(BlueprintAssignable)
 	FOnHealthChangedSignature OnHealthChanged;
+	UPROPERTY(BlueprintAssignable)
+	FOnShieldBrokenSignature OnBrokenShield;
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 	UFUNCTION(BlueprintCallable)

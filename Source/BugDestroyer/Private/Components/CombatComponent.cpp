@@ -12,6 +12,7 @@
 #include "Weapons/Projectiles/ProjectileGrenade.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "Settings/BugGameUserSettings.h"
 #include "Weapons/HitScanWeapon.h"
 #include "Weapons/Weapon.h"
 
@@ -79,7 +80,7 @@ void UCombatComponent::PushCrosshair(float DeltaTime)
 			if (PlayerController->IsLocalPlayerController())
 			{
                 float TargetSpread = (bFiring ? PrimaryWeapon->GetFireCrosshairSpread() : 0.0f) 
-                	+ (bAiming ? PrimaryWeapon->GetAimCrosshairSpread() : 0.0f) + VelocitySpread;
+                	+ (bAiming || BugCharacter->bIsCrouched ? PrimaryWeapon->GetAimCrosshairSpread() : 0.0f) + VelocitySpread;
                 BugHud->SetCrosshairCurrentSpread(FMath::FInterpTo(BugHud->GetCrosshairCurrentSpread(), TargetSpread, DeltaTime, 10.f));
                 BugHud->SetbDrawCrosshair(PrimaryWeapon != nullptr);
 			}
@@ -103,6 +104,7 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		LocalHitTarget = HitResult.ImpactPoint;
 		RPC_SetHitTarget(HitResult.ImpactPoint);
 		InterpFOV(DeltaTime);
+		RecoverRecoil(DeltaTime);
 	}
 
 }
@@ -386,12 +388,68 @@ void UCombatComponent::ExecuteFire(bool InIsFire)
 
 }
 
+void UCombatComponent::ApplyRecoil()
+{
+	if (!BugCharacter || !BugCharacter->IsLocallyControlled() || !PrimaryWeapon) return;
+	if (PlayerController)
+	{
+		FWeaponRecoilData RecoilData = PrimaryWeapon->GetRecoilData();
+		
+		float PitchKick = FMath::RandRange(RecoilData.VerticalRecoilMin, RecoilData.VerticalRecoilMax);
+		float YawKick = FMath::RandRange(RecoilData.HorizontalRecoilMin, RecoilData.HorizontalRecoilMax);
+
+		PlayerController->AddPitchInput(-PitchKick);
+		PlayerController->AddYawInput(YawKick);
+		
+		CurrentRecoilOffset.X += PitchKick;
+		CurrentRecoilOffset.Y += YawKick;
+		
+		CurrentRecoveryRate = RecoilData.RecoilRecoveryRate;
+	}
+}
+
+void UCombatComponent::RecoverRecoil(float DeltaTime)
+{
+	if (bFiring || CurrentRecoilOffset.IsNearlyZero(0.01f)) return;
+
+	if (PlayerController)
+	{
+		float NewPitchOffset = FMath::FInterpTo(CurrentRecoilOffset.X, 0.0f, DeltaTime, CurrentRecoveryRate);
+		float NewYawOffset = FMath::FInterpTo(CurrentRecoilOffset.Y, 0.0f, DeltaTime, CurrentRecoveryRate);
+
+		float PitchRecoveryDelta = CurrentRecoilOffset.X - NewPitchOffset;
+		float YawRecoveryDelta = CurrentRecoilOffset.Y - NewYawOffset;
+		
+		PlayerController->AddPitchInput(PitchRecoveryDelta);
+		PlayerController->AddYawInput(-YawRecoveryDelta);
+
+		CurrentRecoilOffset.X = NewPitchOffset;
+		CurrentRecoilOffset.Y = NewYawOffset;
+	}
+}
+
 void UCombatComponent::LocalPlayFireFX(const FVector& InHitTarget, int32 InRandomSeed)
 {
 	if (PrimaryWeapon && BugCharacter)
 	{
 		PrimaryWeapon->SimulateFireFX(InHitTarget, InRandomSeed);
 		BugCharacter->PlayFireMontage();
+		if (PrimaryWeapon->GetWeaponType() == EWeaponType::EWT_SniperRifle)
+		{
+			if (BoltActionDelay < PrimaryWeapon->GetFireDelay())
+			{
+				if (UWorld* World = GetWorld())
+				{
+					World->GetTimerManager().SetTimer(
+						BoltTimerHandle,
+						this,
+						&ThisClass::PlayBoltAction,
+						BoltActionDelay,
+						false
+					);
+				}
+			}
+		}
 	}
 }
 
@@ -405,6 +463,7 @@ void UCombatComponent::Fire()
 	{
 		PrimaryWeapon->ClientSpendRoundAmmo();
 	}
+	ApplyRecoil();
 	LocalPlayFireFX(HitResult.ImpactPoint, RandomSeed); 
 	RPC_ServerStartFire(HitResult.ImpactPoint, RandomSeed);
 	StartFireTimer();
@@ -609,6 +668,11 @@ void UCombatComponent::OnCombatStateChanged()
 		}
 		break;
 	}
+}
+
+void UCombatComponent::PlayBoltAction()
+{
+	BugCharacter->PlayBoltMontage();
 }
 
 void UCombatComponent::Reload()

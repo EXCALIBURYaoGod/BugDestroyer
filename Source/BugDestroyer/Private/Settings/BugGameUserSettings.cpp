@@ -9,6 +9,8 @@ UBugGameUserSettings::UBugGameUserSettings()
 	, SoundFXVolume(1.f)
 	, bAllowBackgroundAudio(false)
 	, bUseHDRAudioMode(false)
+	, BaseLookSensitivity(1.0f)
+	, ADSLookSensitivity(0.5f)
 {
 	
 }
@@ -72,4 +74,25 @@ void UBugGameUserSettings::SetCurrentDisplayGamma(float InDisplayGamma)
 	{
 		GEngine->DisplayGamma = InDisplayGamma;
 	}
+}
+
+float UBugGameUserSettings::GetBaseLookSensitivity() const
+{
+	return BaseLookSensitivity;
+}
+
+void UBugGameUserSettings::SetBaseLookSensitivity(float NewValue)
+{
+	BaseLookSensitivity = NewValue;
+	
+}
+
+float UBugGameUserSettings::GetADSLookSensitivity() const
+{
+	return ADSLookSensitivity;
+}
+
+void UBugGameUserSettings::SetADSLookSensitivity(float NewValue)
+{
+	ADSLookSensitivity = NewValue;
 }

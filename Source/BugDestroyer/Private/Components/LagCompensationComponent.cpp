@@ -33,7 +33,7 @@ void ULagCompensationComponent::SaveFramePackageHitBoxes(FFramePackage& Package)
 			FBoxInformation BoxInformation;
 			BoxInformation.Location = BoxPair.Value->GetComponentLocation();
 			BoxInformation.Rotation = BoxPair.Value->GetComponentRotation();
-			BoxInformation.BoxExtent = BoxPair.Value->GetScaledBoxExtent();
+			BoxInformation.BoxExtent = BoxPair.Value->GetUnscaledBoxExtent();
 			Package.HitBoxInfo.Add(BoxPair.Key, BoxInformation);
 		}
 	}
@@ -65,7 +65,7 @@ void ULagCompensationComponent::CacheBoxPositions(ABugCharacter* HitCharacter, F
 			FBoxInformation BoxInformation;
 			BoxInformation.Location = HitBoxPair.Value->GetComponentLocation();
 			BoxInformation.Rotation = HitBoxPair.Value->GetComponentRotation();
-			BoxInformation.BoxExtent = HitBoxPair.Value->GetScaledBoxExtent();
+			BoxInformation.BoxExtent = HitBoxPair.Value->GetUnscaledBoxExtent();
 			OutFramePackage.HitBoxInfo.Add(HitBoxPair.Key, BoxInformation);
 		}
 	}
@@ -109,7 +109,7 @@ void ULagCompensationComponent::SaveFramePackage()
 		SaveFramePackageHitBoxes(ThisFrame);
 		FrameHistory.AddHead(ThisFrame);
 		
-		ShowFramePackage(ThisFrame, FColor::Red);
+	//	ShowFramePackage(ThisFrame, FColor::Red);
 	}
 }
 

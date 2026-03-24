@@ -27,6 +27,7 @@ void UWidget_CharacterScreen::SetupGameStateBindings(ACommonGameState* GS)
 	GS->OnMatchTimeUpdated.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnMatchTimeChangedCallback);
 	GS->OnKillMessageBroadcast.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnKillMessageReceivedCallback);
 	GS->OnTeamScoreUpdated.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnTeamScoreChangedCallback);
+	GS->OnMatchScoreUpdated.AddUniqueDynamic(this, &UWidget_CharacterScreen::OnMatchScoreChangedCallback);
 	CachedPlayerState = Cast<ACommonGamePlayerState>(GetOwningPlayerState());
 	int32 OurTeamScore = 0;
 	int32 EnemyTeamScore = 0;
@@ -49,6 +50,7 @@ void UWidget_CharacterScreen::SetupGameStateBindings(ACommonGameState* GS)
 	M = MatchTime / 60;
 	S = MatchTime % 60;
 	OnMatchTimeChangedCallback(M, S);
+	OnMatchScoreChangedCallback(GS->GetMatchScore());
 }
 
 void UWidget_CharacterScreen::OnKillMessageReceivedCallback(const FString& KillerName, const FString& VictimName,
@@ -109,7 +111,7 @@ void UWidget_CharacterScreen::OnHandlePawnResubscribed(APawn* NewPawn)
 	{
 		BugChar->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::OnHealthChangedCallback);
 		OnHealthChangedCallback(BugChar->GetCurrentHealth(), BugChar->GetMaxHealth());
-		
+		BugChar->OnBrokenShield.AddUniqueDynamic(this, &ThisClass::OnBrokenShieldCallback);
 		BugChar->OnShieldChanged.AddUniqueDynamic(this, &ThisClass::OnShieldChangedCallback);
 		OnShieldChangedCallback(BugChar->GetCurrentShield(), BugChar->GetMaxShield());
 		BugChar->OnWeaponChanged.AddUniqueDynamic(this, &ThisClass::OnWeaponChangedCallback);
@@ -120,6 +122,8 @@ void UWidget_CharacterScreen::OnHandlePawnResubscribed(APawn* NewPawn)
 		BP_SetGrenadeHUDVisibility(false);
 		BugChar->OnNetWarning.AddUniqueDynamic(this, &ThisClass::OnNetWarningCallback);
 		OnNetWarningCallback(false);
+		
+		
 	}
 	
 }
@@ -132,6 +136,11 @@ void UWidget_CharacterScreen::OnHealthChangedCallback(float NewHealth, float Max
 void UWidget_CharacterScreen::OnShieldChangedCallback(float NewShield, float MaxShield)
 {
 	BP_OnShieldUpdated(NewShield, MaxShield);
+}
+
+void UWidget_CharacterScreen::OnBrokenShieldCallback()
+{
+	BP_OnBrokenShield();
 }
 
 void UWidget_CharacterScreen::OnAmmoChangedCallback(int32 InCurrentAmmo, int32 InMagCapacity, int32 InAmmoLeft)
@@ -179,6 +188,11 @@ void UWidget_CharacterScreen::OnAmmoLeftChangedCallback(int32 InCurrentAmmo, int
 void UWidget_CharacterScreen::OnMatchTimeChangedCallback(int32 InNewMinutes, int32 InNewSeconds)
 {
 	BP_OnMatchTimeUpdated(InNewMinutes, InNewSeconds);
+}
+
+void UWidget_CharacterScreen::OnMatchScoreChangedCallback(int32 InNewScore)
+{
+	BP_OnMatchScoreUpdated(InNewScore);
 }
 
 void UWidget_CharacterScreen::OnTeamScoreChangedCallback(int32 InRedTeamScore, int32 InBlueTeamScore)

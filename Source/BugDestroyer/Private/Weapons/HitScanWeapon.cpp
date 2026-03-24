@@ -162,6 +162,7 @@ FVector AHitScanWeapon::PerformHitScanTrace(const APawn* OwnerPawn, const FVecto
 	{
 		LineTraceEnd = TraceHit.ImpactPoint;
 	}
+
 	return LineTraceEnd;
 }
 
