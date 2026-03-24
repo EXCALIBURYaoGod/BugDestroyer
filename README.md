@@ -1,104 +1,59 @@
-# BugDestroyer 项目说明
+<h1 align="center">BugDestroyer (多人团队射击游戏)</h1>
 
-## 项目概览
-- 引擎版本：Unreal Engine 5.7（从构建与日志推断）
-- 项目类型：C++ + UMG/CommonUI 的 UI 驱动第三人称项目
-- 插件：含 MultiplayerSessions（用于 Steam/在线多人会话管理）
-- 入口工程文件：[BugDestroyer.uproject](file:///e:/UE/BugDestroyer/BugDestroyer.uproject)
+<p align="center">
+  <img src="https://img.shields.io/badge/Unreal%20Engine-5.x-blue.svg" alt="UE5">
+  <img src="https://img.shields.io/badge/Language-C++-orange.svg" alt="C++">
+  <img src="https://img.shields.io/badge/Architecture-Client%2FServer-green.svg" alt="C/S">
+</p>
 
-## 运行与构建
-- 推荐直接用 UE5 打开 `BugDestroyer.uproject` 进行开发与运行
-- C++ 开发可使用 VS/Rider，通过生成的解决方案 [BugDestroyer.sln](file:///e:/UE/BugDestroyer/BugDestroyer.sln)
-- 目标与构建脚本：
-  - [BugDestroyer.Target.cs](file:///e:/UE/BugDestroyer/Source/BugDestroyer.Target.cs)
-  - [BugDestroyerEditor.Target.cs](file:///e:/UE/BugDestroyer/Source/BugDestroyerEditor.Target.cs)
-  - [BugDestroyer.Build.cs](file:///e:/UE/BugDestroyer/Source/BugDestroyer/BugDestroyer.Build.cs)
+## 📖 项目简介 | Introduction
 
-## 目录结构
-- Config：项目默认配置（Engine/Game/Input 等）
-- Content：美术与蓝图资源（UI、Maps、Input、Materials、Textures 等）
-- Source：C++ 源码
-- Plugins：工程插件（当前可见 MultiplayerSessions/Resources）
-- Binaries/Build/Intermediate/Saved：构建产物与临时文件（无需纳入版本控制）
-- 顶层工程文件：`BugDestroyer.uproject`、`BugDestroyer.sln`
+**BugDestroyer** 是一个基于 Unreal Engine 5 (UE5) 和 C++ 开发的多人网络第一人称射击游戏（FPS）。
+本项目采用了严谨的客户端/服务端（C/S）架构，核心玩法为红蓝阵营的团队死斗（TDM）。项目重点实现了服务端权威的战斗结算、基于历史帧的延迟补偿（Lag Compensation）、完整的比赛状态机流转，以及一套基于 CommonUI 的数据驱动前端框架。
 
-## 源码模块概览
-- 核心入口
-  - [BugDestroyer.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/BugDestroyer.cpp)
-  - [BugDestroyer.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/BugDestroyer.h)
-- 游戏标签
-  - [BugGameplayTags.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/BugGameplayTags.h)
-  - [BugGameplayTags.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Private/BugGameplayTags.cpp)
-- 控制器
-  - [BugPlayerController.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Controllers/BugPlayerController.h)
-  - [BugPlayerController.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Private/BugPlayerController.cpp)
-- 子系统
-  - [BugUISubsystem.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Subsystems/BugUISubsystem.h)
-  - [BugUISubsystem.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Private/Subsystems/BugUISubsystem.cpp)
-  - [BugLoadingScreenSubsystem.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Subsystems/BugLoadingScreenSubsystem.h)
-  - [BugLoadingScreenSubsystem.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Private/Subsystems/BugLoadingScreenSubsystem.cpp)
-- 设置与开发者设置
-  - [BugGameUserSettings.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Settings/BugGameUserSettings.h)
-  - [BugGameUserSettings.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Private/Settings/BugGameUserSettings.cpp)
-  - [BugDestoryerDeveloperSettings.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Settings/BugDestoryerDeveloperSettings.h)
-  - [BugDestoryerDeveloperSettings.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Private/DeveloperSettings/BugDestoryerDeveloperSettings.cpp)
-- UI 与组件
-  - 核心激活/布局：[Widget_ActivatableBase.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Widget_ActivatableBase.h)、[Widget_PrimaryLayout.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Widget_PrimaryLayout.h)
-  - 选项菜单与条目：
-    - [Widget_OptionsScreen.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Widget_OptionsScreen.h)
-    - [OptionsDataRegistry.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Options/OptionsDataRegistry.h)
-    - [Widget_ListEntry_Base.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Options/ListEntries/Widget_ListEntry_Base.h)
-  - 通用组件：
-    - [BugCommonListView.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Components/BugCommonListView.h)
-    - [BugTabListWidgetBase.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Components/BugTabListWidgetBase.h)
-- 异步动作（UI 推送）
-  - [AsyncAction_PushConfirmScreen.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/AsyncActions/AsyncAction_PushConfirmScreen.h)
-  - [AsyncAction_PushSoftWidget.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/AsyncActions/AsyncAction_PushSoftWidget.h)
-- 工具与类型
-  - [BugUIFunctionLibrary.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/BugUIFunctionLibrary.h)
-  - [BugEnumTypes.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/BugTypes/BugEnumTypes.h)
-  - [BugStructTypes.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/BugTypes/BugStructTypes.h)
+---
 
-## 插件系统
-### MultiplayerSessions
-- **功能**：封装了基于 Steam 和 OnlineSubsystem 的多人会话管理逻辑。
-- **核心组件**：
-  - [MultiplayerSessionsSubsystem.h](file:///e:/UE/BugDestroyer/Plugins/MultiplayerSessions/Source/MultiplayerSessions/Public/MultiplayerSessionsSubsystem.h)：处理创建、加入、查找和销毁会话的异步操作。
-  - [SessionInfo.h](file:///e:/UE/BugDestroyer/Plugins/MultiplayerSessions/Source/MultiplayerSessions/Public/Data/SessionInfo.h)：定义会话相关的数据结构。
-- **依赖项**：`OnlineSubsystem`, `OnlineSubsystemSteam`, `CommonUI`。
+## ✨ 核心技术特性 | Core Features
 
-## 资源与关卡
-- UI：`Content/UI/Widgets` 下包含主菜单、加载、确认、多人等界面
-- 输入：`Content/UI/Input` 与 `Content/Input` 下有 IMC/IA 资产
-- 地图：`Content/Maps`（如 `Lobby.umap`、`FrontendTestMap.umap`）
-- 样例第三人称：`Content/ThirdPerson/Lvl_ThirdPerson.umap`
+### ⚔️ 网络与战斗系统 (Networking & Combat)
+- **服务端权威：** 所有核心逻辑（如伤害结算、射击判定、弹药扣除、武器切换）均在服务端执行或验证。
+- **延迟补偿 (Server-Side Rewind)：** 自定义 `ULagCompensationComponent` 组件，服务端会记录玩家 HitBox 的历史变换帧 (FrameHistory)。开火时通过回溯对应延迟时间戳的包围盒位置，对 HitScan（射线类）和 Projectile（抛物线类）武器进行高精度的命中确认。
+- **动态射击反馈：** - 实现了枪械的垂直/水平后坐力 (Recoil) 以及停止开火后的自动准心回复 (Recovery)。
+  - UI 准星会根据玩家的移动速度 (Velocity) 和瞄准状态 (Aiming) 动态计算扩散系数。
+- **状态增益系统：** 独立封装的 `UBuffComponent`，处理通过场景拾取物获取的生命值回复、护盾补充、移动速度强化及跳跃高度提升，并同步至相关运动组件。
 
-## 配置要点
-- 全局默认配置位于 [Config](file:///e:/UE/BugDestroyer/Config)
-- Saved/Temp 中可见打包配置示例（仅供参考），实际以工程设置为准
+### ⏱️ 比赛生命周期管理 (Match Flow & Team System)
+- **状态机流转：** `ACommonGameMode` 管控了整个房间的生命周期，包含 `WaitingToStart` (热身倒计时)、`InProgress` (比赛进行中) 和 `Cooldown` (结算冷却并准备无缝漫游 ServerTravel)。
+- **阵营与复活机制：** 玩家登入 (`PostLogin`) 时分配红蓝队伍，客户端依据队伍动态生成对应颜色的材质实例 (MID)；死亡后通过自定义 `ChoosePlayerStart` 清理缓存并安全复活。
+- **玩家数据解耦：** 使用 `ACommonGamePlayerState` 持久化记录玩家的击杀数 (Kills)、死亡数 (Defeats) 和队伍标签，保证角色被销毁后数据不丢失，并在回合结束时计算 MVP。
 
-## 项目结构建议与命名规范
-- 遵循 UE 约定：
-  - `Source/<Module>/Public` 与 `Private` 分层清晰，当前已良好遵循
-  - `Content` 下按功能域分文件夹（UI/Maps/Input/Assets 等）
-- 命名一致性建议（后续逐步优化）：
-  - `BugDestoryerDeveloperSettings` → 建议修正为 `BugDestroyerDeveloperSettings`
-  - `BugLoadingScrennInterface` → 建议修正为 `BugLoadingScreenInterface`
-  - `ListDataObjcet_Collection` → 建议修正为 `ListDataObject_Collection`
-  - 以上为代码与文件名层面改进，涉及引用与 UCLASS/UINTERFACE 元数据，请在重命名前评估影响
-- 插件与第三方：
-  - `Plugins/MultiplayerSessions` 包含完整的会话管理逻辑源码。
-- 版本控制建议：
-  - 忽略 `Binaries/Build/Intermediate/Saved/Cooked` 等构建输出与临时文件
+### 📊 数据驱动 UI 与前端框架 (Data-Driven UI & Input)
+- **异步 UI 栈：** 基于 `UBugUISubsystem` 和 CommonUI，实现界面的堆栈式管理，支持 UI 资产和贴图的异步加载 (`LoadSynchronous` 与软指针结合应用)。
+- **设置数据注册表：** 编写了 `UOptionsDataRegistry` 集中管理游戏设置（音量、画质、视距、腰射/开镜灵敏度）。配置数据直接绑定至 `UGameUserSettings` 的子类并使用 `Config` 标签，实现自动持久化 (.ini 文件写入)。
+- **动态按键绑定：** 结合 UE5 的 Enhanced Input 系统，提供运行时的键盘/鼠标与手柄按键侦听及重映射功能。
 
-## 打包与发布
-- 通过 UE 编辑器的 Packaging 设置进行打包，当前使用 IOStore 与 Oodle 压缩（Saved/Temp 中可见）
-- 测试包与产物位于 `Build/` 与 `Saved/StagedBuilds/`
+---
 
-## 快速链接
-- 项目配置：[Config](file:///e:/UE/BugDestroyer/Config)
-- 源码入口：[BugDestroyer.cpp](file:///e:/UE/BugDestroyer/Source/BugDestroyer/BugDestroyer.cpp)
-- UI 子系统：[BugUISubsystem.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Subsystems/BugUISubsystem.h)
-- 选项界面：[Widget_OptionsScreen.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Widget/Widget_OptionsScreen.h)
-- 玩家控制器：[BugPlayerController.h](file:///e:/UE/BugDestroyer/Source/BugDestroyer/Public/Controllers/BugPlayerController.h)
+## 🏗️ 核心类与模块 | Architecture Overview
 
+- **`ACommonGameMode` / `ATeamsGameMode`**
+  - 服务端独占。控制游戏核心时序，处理伤害转换 (`CalculateActualDamage`)，拦截作弊，分发出生点。
+- **`ACommonGameState`**
+  - 全网同步。维护房间当前阶段时间 (Warmup/Match/Cooldown)，红蓝队伍比分，以及多播击杀广播 (KillFeed)。
+- **`ABugCharacter`**
+  - 处理物理移动、基于视角的射线检测目标 (`GetHitTarget`)、以及动画的融合（IK、AimOffsets）。死亡时包含网格体溶解材质的 Timeline 动画过渡。
+- **`UCombatComponent`**
+  - 角色战斗核心组件。处理主副武器的装备、切换、装弹、抛掷手雷以及弹药本地预表现。
+
+---
+
+## 🚀 快速开始 | Getting Started
+
+### 开发环境
+* **引擎版本：** Unreal Engine 5.x (建议具有 C++ 开发环境配置)
+* **IDE：** Visual Studio 2022 (或 Rider)
+
+### 编译与运行
+1. 克隆项目仓库到本地计算机：
+   ```bash
+   git clone [https://github.com/EXCALIBURYaoGod/BugDestroyer.git](https://github.com/EXCALIBURYaoGod/BugDestroyer.git)
