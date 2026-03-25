@@ -8,7 +8,7 @@
 
 ## 📖 项目简介 | Introduction
 
-**BugDestroyer** 是一个基于 Unreal Engine 5 (UE5) 和 C++ 开发的多人网络第一人称射击游戏（FPS）。
+**BugDestroyer** 是一个基于 Unreal Engine 5 (UE5) 和 C++ 开发的多人网络第三人称射击游戏（TPS）。
 本项目采用了严谨的客户端/服务端（C/S）架构，核心玩法为红蓝阵营的团队死斗（TDM）。项目重点实现了服务端权威的战斗结算、基于历史帧的延迟补偿（Lag Compensation）、完整的比赛状态机流转，以及一套基于 CommonUI 的数据驱动前端框架。
 
 ---
